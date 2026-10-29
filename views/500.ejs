@@ -1,0 +1,10 @@
+<%- include('partials/header', { title: 'Live Data Unavailable', activePage: '' }) %>
+<main class="main">
+  <div class="error-page">
+    <div class="error-code">⚠</div>
+    <h1>Live Data Unavailable</h1>
+    <p><%= message %></p>
+    <a href="/" class="btn-primary">Try Again</a>
+  </div>
+</main>
+<%- include('partials/footer') %>

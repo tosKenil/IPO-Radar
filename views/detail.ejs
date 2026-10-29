@@ -1,0 +1,278 @@
+<%- include('partials/header', { title: ipo.name, activePage: 'detail' }) %>
+
+<main class="main">
+  <!-- Back Button -->
+  <div class="container back-bar">
+    <a href="/" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
+  </div>
+
+  <div class="container detail-layout">
+    <!-- Left: Main Info -->
+    <div class="detail-main">
+
+      <!-- Company Header Card -->
+      <div class="detail-hero-card">
+        <div class="detail-hero-top">
+          <div class="detail-logo"><%= ipo.symbol.charAt(0) %></div>
+          <div class="detail-company-info">
+            <div class="detail-meta-row">
+              <span class="ipo-category <%= ipo.category === 'SME' ? 'sme' : 'main' %>"><%= ipo.category %></span>
+              <% if (ipo.issueType) { %><span class="ipo-sector"><%= ipo.issueType %></span><% } %>
+              <div class="status-badge status-<%= ipo.status %> ml-auto">
+                <% if (ipo.status === 'open') { %><span class="pulse-dot"></span><% } %>
+                <%= ipo.status === 'allotment' ? 'Allotment Pending' : ipo.status.charAt(0).toUpperCase() + ipo.status.slice(1) %>
+              </div>
+            </div>
+            <h1 class="detail-company-name"><%= ipo.name %></h1>
+            <span class="detail-symbol">NSE: <%= ipo.symbol %></span>
+          </div>
+        </div>
+
+        <!-- Return Banner -->
+        <% if (ipo.currentReturnPct !== null) { %>
+        <div class="return-banner <%= parseFloat(ipo.currentReturnPct) >= 0 ? 'positive' : 'negative' %>">
+          <div class="rb-item">
+            <span class="rb-label">Issue Price</span>
+            <span class="rb-value">₹<%= ipo.issuePrice %></span>
+          </div>
+          <div class="rb-arrow">
+            <i class="fa-solid fa-arrow-right"></i>
+          </div>
+          <div class="rb-item">
+            <span class="rb-label">Listing Price</span>
+            <span class="rb-value"><%= ipo.listingPrice ? '₹' + ipo.listingPrice : 'TBA' %></span>
+          </div>
+          <div class="rb-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+          <div class="rb-item">
+            <span class="rb-label">Current Price</span>
+            <span class="rb-value">₹<%= ipo.currentPrice %></span>
+          </div>
+          <div class="rb-returns">
+            <% if (ipo.listingReturnPct !== null) { %>
+            <div class="rb-return-item">
+              <span class="rb-label">Listing Return</span>
+              <span class="rb-big <%= parseFloat(ipo.listingReturnPct) >= 0 ? 'text-green' : 'text-red' %>">
+                <%= parseFloat(ipo.listingReturnPct) >= 0 ? '+' : '' %><%= ipo.listingReturnPct %>%
+              </span>
+            </div>
+            <% } %>
+            <div class="rb-return-item">
+              <span class="rb-label">Current Return</span>
+              <span class="rb-big <%= parseFloat(ipo.currentReturnPct) >= 0 ? 'text-green' : 'text-red' %>">
+                <%= parseFloat(ipo.currentReturnPct) >= 0 ? '+' : '' %><%= ipo.currentReturnPct %>%
+              </span>
+            </div>
+          </div>
+        </div>
+        <% } %>
+      </div>
+
+      <!-- IPO Timeline -->
+      <div class="glass-card">
+        <h2 class="card-title"><i class="fa-solid fa-timeline"></i> IPO Timeline</h2>
+        <div class="timeline">
+          <div class="tl-item <%= new Date() >= new Date(ipo.openDate) ? 'done' : '' %>">
+            <div class="tl-dot"></div>
+            <div class="tl-content">
+              <span class="tl-label">Open Date</span>
+              <span class="tl-date"><%= formatDate(ipo.openDate) %></span>
+            </div>
+          </div>
+          <div class="tl-line"></div>
+          <div class="tl-item <%= new Date() >= new Date(ipo.closeDate) ? 'done' : '' %>">
+            <div class="tl-dot"></div>
+            <div class="tl-content">
+              <span class="tl-label">Close Date</span>
+              <span class="tl-date"><%= formatDate(ipo.closeDate) %></span>
+            </div>
+          </div>
+          <div class="tl-line"></div>
+          <div class="tl-item <%= new Date() >= new Date(ipo.allotmentDate) ? 'done' : '' %>">
+            <div class="tl-dot"></div>
+            <div class="tl-content">
+              <span class="tl-label">Allotment Date</span>
+              <span class="tl-date"><%= formatDate(ipo.allotmentDate) %></span>
+            </div>
+          </div>
+          <div class="tl-line"></div>
+          <div class="tl-item <%= new Date() >= new Date(ipo.listingDate) ? 'done' : '' %>">
+            <div class="tl-dot"></div>
+            <div class="tl-content">
+              <span class="tl-label">Listing Date</span>
+              <span class="tl-date"><%= formatDate(ipo.listingDate) %></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subscription Details -->
+      <% if (ipo.subscriptionTimes) { %>
+      <div class="glass-card">
+        <h2 class="card-title"><i class="fa-solid fa-users"></i> Subscription Status</h2>
+        <div class="sub-overall">
+          <span class="sub-big"><%= ipo.subscriptionTimes %>x</span>
+          <span class="sub-lbl">Overall Subscribed</span>
+        </div>
+        <div class="sub-bars">
+          <div class="sub-bar-item">
+            <div class="sub-bar-header">
+              <span class="sub-bar-label">QIB</span>
+              <span class="sub-bar-val"><%= ipo.qibSubscription %>x</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill qib" style="width: <%= Math.min((ipo.qibSubscription / 300) * 100, 100) %>%"></div>
+            </div>
+          </div>
+          <div class="sub-bar-item">
+            <div class="sub-bar-header">
+              <span class="sub-bar-label">NII (HNI)</span>
+              <span class="sub-bar-val"><%= ipo.niiSubscription %>x</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill nii" style="width: <%= Math.min((ipo.niiSubscription / 300) * 100, 100) %>%"></div>
+            </div>
+          </div>
+          <div class="sub-bar-item">
+            <div class="sub-bar-header">
+              <span class="sub-bar-label">Retail</span>
+              <span class="sub-bar-val"><%= ipo.retailSubscription %>x</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill retail" style="width: <%= Math.min((ipo.retailSubscription / 100) * 100, 100) %>%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- Issue Information -->
+      <div class="glass-card">
+        <h2 class="card-title"><i class="fa-solid fa-circle-info"></i> Issue Information</h2>
+        <table class="details-table">
+          <% if (ipo.issueType) { %><tr><td>Issue Type</td><td><%= ipo.issueType %></td></tr><% } %>
+          <% if (ipo.faceValue) { %><tr><td>Face Value</td><td><%= ipo.faceValue %></td></tr><% } %>
+          <% if (ipo.registrar) { %><tr><td>Registrar</td><td><%= ipo.registrar %></td></tr><% } %>
+        </table>
+        <% if (!ipo.issueType && !ipo.faceValue && !ipo.registrar) { %>
+        <p class="about-text">Detailed issue information isn't available from the data source for this IPO yet.</p>
+        <% } %>
+      </div>
+
+      <!-- Official Documents -->
+      <% if (ipo.documents && ipo.documents.length) { %>
+      <div class="glass-card">
+        <h2 class="card-title"><i class="fa-solid fa-file-lines"></i> Official Documents (NSE)</h2>
+        <ul class="manager-list">
+          <% ipo.documents.forEach(doc => { %>
+          <li><i class="fa-solid fa-chevron-right"></i> <a href="<%= doc.url %>" target="_blank" rel="noopener"><%= doc.label %></a></li>
+          <% }) %>
+        </ul>
+      </div>
+      <% } %>
+    </div>
+
+    <!-- Right: Sidebar -->
+    <aside class="detail-sidebar">
+
+      <!-- IPO Details -->
+      <div class="glass-card">
+        <h2 class="card-title"><i class="fa-solid fa-info-circle"></i> IPO Details</h2>
+        <table class="details-table">
+          <tr><td>Price Band</td><td><%= ipo.priceband ? '₹' + ipo.priceband : 'TBA' %></td></tr>
+          <tr><td>Issue Price</td><td><%= ipo.issuePrice ? '₹' + ipo.issuePrice : 'TBA' %></td></tr>
+          <tr><td>Lot Size</td><td><%= ipo.lotSize ? ipo.lotSize + ' shares' : 'TBA' %></td></tr>
+          <tr>
+            <td>1 Lot Total Amount</td>
+            <td>
+              <% 
+                let lotAmt = typeof getOneLotAmount === 'function' ? getOneLotAmount(ipo) : null;
+                if (!lotAmt && ipo && ipo.lotSize) {
+                  let p = (ipo.issuePrice && Number(ipo.issuePrice) > 0) ? Number(ipo.issuePrice) : null;
+                  if (!p && ipo.priceband) {
+                    const m = String(ipo.priceband).match(/[\d.]+/g);
+                    if (m && m.length > 0) p = parseFloat(m[m.length - 1]);
+                  }
+                  if (p) lotAmt = Math.round(p * Number(ipo.lotSize));
+                }
+              %>
+              <%= lotAmt ? '₹' + lotAmt.toLocaleString('en-IN') : 'TBA' %>
+            </td>
+          </tr>
+          <tr><td>Issue Size</td><td><%= ipo.issueSize || '—' %></td></tr>
+          <% if (ipo.registrar) { %><tr><td>Registrar</td><td><%= ipo.registrar %></td></tr><% } %>
+        </table>
+      </div>
+
+      <!-- Return Calculator -->
+      <% if (ipo.currentPrice && ipo.issuePrice) { %>
+      <div class="glass-card calculator-card">
+        <h2 class="card-title"><i class="fa-solid fa-calculator"></i> Return Calculator</h2>
+        <div class="calc-form">
+          <label>Number of Lots</label>
+          <div class="calc-input-row">
+            <button class="calc-btn" onclick="adjustLots(-1)">−</button>
+            <input type="number" id="lotsInput" value="1" min="1" max="100" onchange="calculateReturn()" />
+            <button class="calc-btn" onclick="adjustLots(1)">+</button>
+          </div>
+          <div class="calc-summary" id="calcSummary">
+            <div class="calc-row">
+              <span>Investment</span>
+              <span id="calcInvestment">₹<%= (ipo.issuePrice * ipo.lotSize).toLocaleString('en-IN') %></span>
+            </div>
+            <div class="calc-row">
+              <span>Current Value</span>
+              <span id="calcCurrentVal">₹<%= (ipo.currentPrice * ipo.lotSize).toLocaleString('en-IN') %></span>
+            </div>
+            <div class="calc-row highlight">
+              <span>Profit / Loss</span>
+              <span id="calcProfit" class="<%= ipo.currentReturnPct >= 0 ? 'text-green' : 'text-red' %>">
+                ₹<%= ((ipo.currentPrice - ipo.issuePrice) * ipo.lotSize).toLocaleString('en-IN') %>
+              </span>
+            </div>
+            <div class="calc-row highlight">
+              <span>Return %</span>
+              <span class="<%= parseFloat(ipo.currentReturnPct) >= 0 ? 'text-green' : 'text-red' %>"><%= parseFloat(ipo.currentReturnPct) >= 0 ? '+' : '' %><%= ipo.currentReturnPct %>%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <script>
+        const issuePrice = <%= ipo.issuePrice %>;
+        const currentPrice = <%= ipo.currentPrice %>;
+        const lotSize = <%= ipo.lotSize %>;
+        function formatINR(n) { return '₹' + n.toLocaleString('en-IN'); }
+        function adjustLots(d) {
+          const inp = document.getElementById('lotsInput');
+          inp.value = Math.max(1, parseInt(inp.value) + d);
+          calculateReturn();
+        }
+        function calculateReturn() {
+          const lots = parseInt(document.getElementById('lotsInput').value) || 1;
+          const inv = issuePrice * lotSize * lots;
+          const cur = currentPrice * lotSize * lots;
+          const profit = cur - inv;
+          document.getElementById('calcInvestment').textContent = formatINR(inv);
+          document.getElementById('calcCurrentVal').textContent = formatINR(cur);
+          const profitEl = document.getElementById('calcProfit');
+          profitEl.textContent = (profit >= 0 ? '+' : '') + formatINR(profit);
+          profitEl.className = profit >= 0 ? 'text-green' : 'text-red';
+        }
+      </script>
+      <% } %>
+
+      <!-- Lead Managers -->
+      <% if (ipo.leadManagers && ipo.leadManagers.length) { %>
+      <div class="glass-card">
+        <h2 class="card-title"><i class="fa-solid fa-handshake"></i> Lead Managers</h2>
+        <ul class="manager-list">
+          <% ipo.leadManagers.forEach(lm => { %>
+          <li><i class="fa-solid fa-chevron-right"></i> <%= lm %></li>
+          <% }) %>
+        </ul>
+      </div>
+      <% } %>
+    </aside>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

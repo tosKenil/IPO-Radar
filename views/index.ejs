@@ -1,0 +1,196 @@
+<%- include('partials/header', { title: 'Dashboard', activePage: 'home' }) %>
+
+<% if (typeof dataStale !== 'undefined' && dataStale) { %>
+<div class="stale-banner">
+  <i class="fa-solid fa-triangle-exclamation"></i>
+  Live data source is temporarily unreachable — showing the last successful fetch.
+</div>
+<% } %>
+
+<main class="main">
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-bg-orbs">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+    <div class="hero-content">
+      <div class="hero-tag"><i class="fa-solid fa-fire"></i> August 2026 IPO Season</div>
+      <h1 class="hero-title">IPO <span class="gradient-text">Dashboard</span></h1>
+      <p class="hero-subtitle">Track all active, upcoming &amp; recently listed IPOs — allotment dates, returns &amp; subscription status at a glance.</p>
+
+      <!-- Stats Row -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon"><i class="fa-solid fa-layer-group"></i></div>
+          <div class="stat-value"><%= stats.totalIPOs %></div>
+          <div class="stat-label">Total IPOs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="color: var(--green)"><i class="fa-solid fa-chart-line"></i></div>
+          <div class="stat-value <%= parseFloat(stats.avgReturn) >= 0 ? 'text-green' : 'text-red' %>">
+            <%= parseFloat(stats.avgReturn) >= 0 ? '+' : '' %><%= stats.avgReturn %>%
+          </div>
+          <div class="stat-label">Avg. Current Return</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="color: var(--accent)"><i class="fa-solid fa-bolt"></i></div>
+          <div class="stat-value"><%= stats.totalOpen %></div>
+          <div class="stat-label">Open Now</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="color: #a78bfa"><i class="fa-solid fa-rocket"></i></div>
+          <div class="stat-value"><%= stats.totalUpcoming %></div>
+          <div class="stat-label">Upcoming</div>
+        </div>
+        <% if (stats.best) { %>
+        <div class="stat-card stat-card-wide">
+          <div class="stat-icon" style="color: var(--green)"><i class="fa-solid fa-trophy"></i></div>
+          <div class="stat-value text-green">+<%= stats.best.currentReturnPct %>%</div>
+          <div class="stat-label">Best: <%= stats.best.name %></div>
+        </div>
+        <% } %>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filter Tabs -->
+  <section class="filter-section">
+    <div class="container">
+      <div class="filter-tabs" id="filterTabs">
+        <a href="/?filter=all" id="tab-all" class="filter-tab <%= filter === 'all' ? 'active' : '' %>">
+          <i class="fa-solid fa-border-all"></i> All IPOs
+          <span class="tab-count"><%= allIpos.length %></span>
+        </a>
+        <a href="/?filter=open" id="tab-open" class="filter-tab <%= filter === 'open' ? 'active' : '' %>">
+          <i class="fa-solid fa-circle-play"></i> Open
+          <span class="tab-count"><%= allIpos.filter(i => i.status === 'open').length %></span>
+        </a>
+        <a href="/?filter=upcoming" id="tab-upcoming" class="filter-tab <%= filter === 'upcoming' ? 'active' : '' %>">
+          <i class="fa-solid fa-clock"></i> Upcoming
+          <span class="tab-count"><%= allIpos.filter(i => i.status === 'upcoming').length %></span>
+        </a>
+        <a href="/?filter=allotment" id="tab-allotment" class="filter-tab <%= filter === 'allotment' ? 'active' : '' %>">
+          <i class="fa-solid fa-envelope-open-text"></i> Allotment
+          <span class="tab-count"><%= allIpos.filter(i => i.status === 'allotment').length %></span>
+        </a>
+        <a href="/?filter=listed" id="tab-listed" class="filter-tab <%= filter === 'listed' ? 'active' : '' %>">
+          <i class="fa-solid fa-check-circle"></i> Listed
+          <span class="tab-count"><%= allIpos.filter(i => i.status === 'listed').length %></span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- IPO Cards Grid -->
+  <section class="cards-section">
+    <div class="container">
+      <% if (ipos.length === 0) { %>
+        <div class="empty-state">
+          <i class="fa-solid fa-inbox"></i>
+          <p>No IPOs found for this filter.</p>
+        </div>
+      <% } else { %>
+      <div class="ipo-grid" id="ipoGrid">
+        <% ipos.forEach(function(ipo) { %>
+        <a href="/ipo/<%= ipo.id %>" class="ipo-card" id="ipo-card-<%= ipo.id %>">
+          <!-- Status Badge -->
+          <div class="card-header">
+            <div class="ipo-logo"><%= ipo.symbol.charAt(0) %></div>
+            <div class="status-badge status-<%= ipo.status %>">
+              <% if (ipo.status === 'open') { %><span class="pulse-dot"></span><% } %>
+              <%= ipo.status === 'allotment' ? 'Allotment' : ipo.status.charAt(0).toUpperCase() + ipo.status.slice(1) %>
+            </div>
+          </div>
+
+          <!-- Name & Category -->
+          <div class="card-body">
+            <div class="ipo-meta">
+              <span class="ipo-category <%= ipo.category === 'SME' ? 'sme' : 'main' %>"><%= ipo.category %></span>
+              <span class="ipo-sector">NSE: <%= ipo.symbol %></span>
+            </div>
+            <h2 class="ipo-name"><%= ipo.name %></h2>
+
+            <!-- Price Info -->
+            <div class="price-row">
+              <div class="price-item">
+                <span class="price-label">Issue Price</span>
+                <span class="price-value"><%= ipo.issuePrice ? '₹' + ipo.issuePrice : 'TBA' %></span>
+              </div>
+              <% if (ipo.status === 'listed') { %>
+              <div class="price-item">
+                <span class="price-label">Listing Price</span>
+                <span class="price-value"><%= ipo.listingPrice ? '₹' + ipo.listingPrice : 'TBA' %></span>
+              </div>
+              <div class="price-item">
+                <span class="price-label">Current Price</span>
+                <span class="price-value"><%= ipo.currentPrice ? '₹' + ipo.currentPrice : 'TBA' %></span>
+              </div>
+              <% } else { %>
+              <div class="price-item">
+                <span class="price-label">Price Band</span>
+                <span class="price-value"><%= ipo.priceband ? '₹' + ipo.priceband : 'TBA' %></span>
+              </div>
+              <div class="price-item">
+                <span class="price-label">1 Lot Total</span>
+                <span class="price-value" style="color: var(--accent); font-weight: 600;"><% const lotAmt = typeof getOneLotAmount === 'function' ? getOneLotAmount(ipo) : null; %><%= lotAmt ? '₹' + lotAmt.toLocaleString('en-IN') : 'TBA' %></span>
+              </div>
+              <% } %>
+            </div>
+
+            <!-- Return Badge -->
+            <% if (ipo.currentReturnPct !== null) { %>
+            <div class="return-strip <%= parseFloat(ipo.currentReturnPct) >= 0 ? 'positive' : 'negative' %>">
+              <i class="fa-solid <%= parseFloat(ipo.currentReturnPct) >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' %>"></i>
+              <span class="return-label">Current Return</span>
+              <span class="return-value"><%= parseFloat(ipo.currentReturnPct) >= 0 ? '+' : '' %><%= ipo.currentReturnPct %>%</span>
+            </div>
+            <% } %>
+
+            <!-- Dates -->
+            <div class="dates-grid">
+              <div class="date-item">
+                <i class="fa-regular fa-calendar"></i>
+                <div>
+                  <span class="date-label">Open</span>
+                  <span class="date-value"><%= formatDate(ipo.openDate) %></span>
+                </div>
+              </div>
+              <div class="date-item">
+                <i class="fa-regular fa-calendar-check"></i>
+                <div>
+                  <span class="date-label">Allotment</span>
+                  <span class="date-value"><%= formatDate(ipo.allotmentDate) %></span>
+                </div>
+              </div>
+              <div class="date-item">
+                <i class="fa-solid fa-building-columns"></i>
+                <div>
+                  <span class="date-label">Listing</span>
+                  <span class="date-value"><%= formatDate(ipo.listingDate) %></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Subscription -->
+            <% if (ipo.subscriptionTimes) { %>
+            <div class="sub-row">
+              <span class="sub-label"><i class="fa-solid fa-signal"></i> Subscribed</span>
+              <span class="sub-value"><%= ipo.subscriptionTimes %>x</span>
+            </div>
+            <% } %>
+          </div>
+
+          <div class="card-footer">
+            <span class="view-details">View Details <i class="fa-solid fa-arrow-right"></i></span>
+          </div>
+        </a>
+        <% }); %>
+      </div>
+      <% } %>
+    </div>
+  </section>
+</main>
+
+<%- include('partials/footer') %>

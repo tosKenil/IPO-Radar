@@ -1,0 +1,22 @@
+{
+  "name": "ipo-dashboard",
+  "version": "1.0.0",
+  "description": "IPO Information Dashboard - Track current, upcoming, and recent IPOs",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "keywords": [
+    "ipo",
+    "stock",
+    "investment"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "express": "^4.18.2",
+    "nodemon": "^3.1.14"
+  }
+}

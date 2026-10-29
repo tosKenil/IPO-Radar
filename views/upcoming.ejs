@@ -1,0 +1,124 @@
+<%- include('partials/header', { title: 'Upcoming IPOs', activePage: 'upcoming' }) %>
+
+<% if (typeof dataStale !== 'undefined' && dataStale) { %>
+<div class="stale-banner">
+  <i class="fa-solid fa-triangle-exclamation"></i>
+  Live data source is temporarily unreachable — showing the last successful fetch.
+</div>
+<% } %>
+
+<main class="main">
+  <!-- Page Hero -->
+  <section class="page-hero">
+    <div class="hero-bg-orbs">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+    </div>
+    <div class="page-hero-content">
+      <div class="hero-tag"><i class="fa-solid fa-rocket"></i> Coming Soon</div>
+      <h1 class="hero-title">Upcoming <span class="gradient-text">IPOs</span></h1>
+      <p class="hero-subtitle">Explore IPOs opening soon — plan ahead with price bands, issue sizes &amp; expected dates.</p>
+    </div>
+  </section>
+
+  <section class="cards-section">
+    <div class="container">
+      <% if (ipos.length === 0) { %>
+        <div class="empty-state">
+          <i class="fa-solid fa-rocket"></i>
+          <p>No upcoming IPOs at the moment. Check back soon!</p>
+        </div>
+      <% } else { %>
+      <div class="upcoming-grid">
+        <% ipos.forEach(function(ipo) { %>
+        <div class="upcoming-card">
+          <div class="uc-header">
+            <div class="ipo-logo"><%= ipo.symbol.charAt(0) %></div>
+            <div class="uc-title-area">
+              <div class="detail-meta-row">
+                <span class="ipo-category <%= ipo.category === 'SME' ? 'sme' : 'main' %>"><%= ipo.category %></span>
+                <span class="ipo-sector">NSE: <%= ipo.symbol %></span>
+              </div>
+              <h2 class="uc-name"><%= ipo.name %></h2>
+            </div>
+          </div>
+
+          <div class="uc-body">
+            <div class="uc-info-grid">
+              <div class="uc-info-item">
+                <span class="uc-info-label">Price Band</span>
+                <span class="uc-info-value"><%= ipo.priceband ? '₹' + ipo.priceband : 'TBA' %></span>
+              </div>
+              <div class="uc-info-item">
+                <span class="uc-info-label">Issue Size</span>
+                <span class="uc-info-value"><%= ipo.issueSize %></span>
+              </div>
+              <div class="uc-info-item">
+                <span class="uc-info-label">Lot Size</span>
+                <span class="uc-info-value"><%= ipo.lotSize ? ipo.lotSize + ' shares' : 'TBA' %></span>
+              </div>
+              <div class="uc-info-item">
+                <span class="uc-info-label">1 Lot Total</span>
+                <span class="uc-info-value" style="color: var(--accent); font-weight: 600;">
+                  <% const lotAmt = typeof getOneLotAmount === 'function' ? getOneLotAmount(ipo) : null; %>
+                  <%= lotAmt ? '₹' + lotAmt.toLocaleString('en-IN') : 'TBA' %>
+                </span>
+              </div>
+            </div>
+
+            <div class="uc-dates">
+              <div class="uc-date-item open">
+                <i class="fa-regular fa-calendar-plus"></i>
+                <div>
+                  <span class="date-label">Opens</span>
+                  <span class="date-value"><%= formatDate(ipo.openDate) %></span>
+                </div>
+              </div>
+              <div class="uc-date-sep"><i class="fa-solid fa-arrow-right"></i></div>
+              <div class="uc-date-item close">
+                <i class="fa-regular fa-calendar-minus"></i>
+                <div>
+                  <span class="date-label">Closes</span>
+                  <span class="date-value"><%= formatDate(ipo.closeDate) %></span>
+                </div>
+              </div>
+              <div class="uc-date-sep"><i class="fa-solid fa-arrow-right"></i></div>
+              <div class="uc-date-item allotment">
+                <i class="fa-regular fa-calendar-check"></i>
+                <div>
+                  <span class="date-label">Allotment</span>
+                  <span class="date-value"><%= formatDate(ipo.allotmentDate) %></span>
+                </div>
+              </div>
+              <div class="uc-date-sep"><i class="fa-solid fa-arrow-right"></i></div>
+              <div class="uc-date-item listing">
+                <i class="fa-solid fa-building-columns"></i>
+                <div>
+                  <span class="date-label">Listing</span>
+                  <span class="date-value"><%= formatDate(ipo.listingDate) %></span>
+                </div>
+              </div>
+            </div>
+
+            <p class="uc-about">
+              <% if (ipo.leadManagers && ipo.leadManagers.length) { %>
+                <strong>Lead Manager<%= ipo.leadManagers.length > 1 ? 's' : '' %>:</strong> <%= ipo.leadManagers.join(', ') %>
+              <% } %>
+              <% if (ipo.registrar) { %>
+                <br /><strong>Registrar:</strong> <%= ipo.registrar %>
+              <% } %>
+            </p>
+          </div>
+
+          <div class="uc-footer">
+            <a href="/ipo/<%= ipo.id %>" class="btn-primary">View Full Details <i class="fa-solid fa-arrow-right"></i></a>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+      <% } %>
+    </div>
+  </section>
+</main>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="IPO Dashboard — Track current, upcoming and recent IPO listings in India with returns and allotment details." />
+  <title><%= typeof title !== 'undefined' ? title + ' | ' : '' %>IPO Dashboard India</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-container">
+      <a href="/" class="nav-brand">
+        <span class="brand-icon">📈</span>
+        <span class="brand-name">IPO<span class="brand-accent">Radar</span></span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="/" class="nav-link <%= typeof activePage !== 'undefined' && activePage === 'home' ? 'active' : '' %>"><i class="fa-solid fa-house"></i> Dashboard</a></li>
+        <li><a href="/upcoming" class="nav-link <%= typeof activePage !== 'undefined' && activePage === 'upcoming' ? 'active' : '' %>"><i class="fa-solid fa-rocket"></i> Upcoming</a></li>
+      </ul>
+      <div class="nav-badge">
+        <span class="live-dot"></span> LIVE
+      </div>
+    </div>
+  </nav>
