@@ -28,7 +28,7 @@
           </div>
         </div>
 
-        <!-- Return Banner -->
+        <!-- Return Banner for Listed IPOs -->
         <% if (ipo.currentReturnPct !== null) { %>
         <div class="return-banner <%= parseFloat(ipo.currentReturnPct) >= 0 ? 'positive' : 'negative' %>">
           <div class="rb-item">
@@ -65,13 +65,38 @@
           </div>
         </div>
         <% } %>
+
+        <!-- Estimated Listing Gain & Price Banner for Open / Upcoming IPOs -->
+        <% 
+          const detailEst = typeof getEstimateListing === 'function' ? getEstimateListing(ipo) : null;
+          const detailExp = typeof getExpectedReturn === 'function' ? getExpectedReturn(ipo) : null;
+        %>
+        <% if (ipo.currentReturnPct === null && (detailEst || detailExp)) { %>
+        <div class="return-banner positive" style="background: rgba(16,185,129,0.06); border-top: 1px solid rgba(16,185,129,0.2);">
+          <div class="rb-item">
+            <span class="rb-label">Base / Cutoff Price</span>
+            <span class="rb-value">₹<%= detailEst ? detailEst.cutoffPrice : (ipo.issuePrice || (ipo.priceband ? ipo.priceband.split('-').pop().trim() : 'TBA')) %></span>
+          </div>
+          <div class="rb-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+          <div class="rb-item">
+            <span class="rb-label">Est. Listing Price</span>
+            <span class="rb-value text-green"><%= detailEst ? detailEst.listingPriceFormatted : 'TBA' %></span>
+          </div>
+          <div class="rb-returns">
+            <div class="rb-return-item">
+              <span class="rb-label">Est. Listing Gain (%)</span>
+              <span class="rb-big text-green"><%= detailEst ? detailEst.gainPctFormatted : (detailExp ? detailExp.formatted : 'TBA') %></span>
+            </div>
+          </div>
+        </div>
+        <% } %>
       </div>
 
       <!-- IPO Timeline -->
       <div class="glass-card">
         <h2 class="card-title"><i class="fa-solid fa-timeline"></i> IPO Timeline</h2>
         <div class="timeline">
-          <div class="tl-item <%= new Date() >= new Date(ipo.openDate) ? 'done' : '' %>">
+          <div class="tl-item <%= ipo.openDate && new Date() >= new Date(ipo.openDate) ? 'done' : '' %>">
             <div class="tl-dot"></div>
             <div class="tl-content">
               <span class="tl-label">Open Date</span>
@@ -79,7 +104,7 @@
             </div>
           </div>
           <div class="tl-line"></div>
-          <div class="tl-item <%= new Date() >= new Date(ipo.closeDate) ? 'done' : '' %>">
+          <div class="tl-item <%= ipo.closeDate && new Date() >= new Date(ipo.closeDate) ? 'done' : '' %>">
             <div class="tl-dot"></div>
             <div class="tl-content">
               <span class="tl-label">Close Date</span>
@@ -87,7 +112,7 @@
             </div>
           </div>
           <div class="tl-line"></div>
-          <div class="tl-item <%= new Date() >= new Date(ipo.allotmentDate) ? 'done' : '' %>">
+          <div class="tl-item <%= ipo.allotmentDate && new Date() >= new Date(ipo.allotmentDate) ? 'done' : '' %>">
             <div class="tl-dot"></div>
             <div class="tl-content">
               <span class="tl-label">Allotment Date</span>
@@ -95,7 +120,7 @@
             </div>
           </div>
           <div class="tl-line"></div>
-          <div class="tl-item <%= new Date() >= new Date(ipo.listingDate) ? 'done' : '' %>">
+          <div class="tl-item <%= ipo.listingDate && new Date() >= new Date(ipo.listingDate) ? 'done' : '' %>">
             <div class="tl-dot"></div>
             <div class="tl-content">
               <span class="tl-label">Listing Date</span>
@@ -186,16 +211,57 @@
             <td>
               <% 
                 let lotAmt = typeof getOneLotAmount === 'function' ? getOneLotAmount(ipo) : null;
-                if (!lotAmt && ipo && ipo.lotSize) {
-                  let p = (ipo.issuePrice && Number(ipo.issuePrice) > 0) ? Number(ipo.issuePrice) : null;
-                  if (!p && ipo.priceband) {
-                    const m = String(ipo.priceband).match(/[\d.]+/g);
-                    if (m && m.length > 0) p = parseFloat(m[m.length - 1]);
-                  }
-                  if (p) lotAmt = Math.round(p * Number(ipo.lotSize));
-                }
               %>
               <%= lotAmt ? '₹' + lotAmt.toLocaleString('en-IN') : 'TBA' %>
+            </td>
+          </tr>
+          <tr>
+            <td>Est. Listing Price</td>
+            <td>
+              <strong style="color: var(--green); font-size: 1.05rem;">
+                <%= detailEst ? detailEst.listingPriceFormatted : 'TBA' %>
+              </strong>
+            </td>
+          </tr>
+          <tr>
+            <td>Est. Listing Gain (%)</td>
+            <td>
+              <% if (detailEst) { %>
+                <strong class="<%= detailEst.isPositive ? 'text-green' : 'text-red' %>" style="font-size: 1.05rem;">
+                  <%= detailEst.gainPctFormatted %>
+                </strong>
+              <% } else if (detailExp) { %>
+                <strong class="<%= detailExp.isPositive ? 'text-green' : 'text-red' %>" style="font-size: 1.05rem;">
+                  <%= detailExp.formatted %>
+                </strong>
+              <% } else { %>
+                TBA
+              <% } %>
+            </td>
+          </tr>
+          <tr>
+            <td>100 એ કેટલાને લાગશે</td>
+            <td>
+              <% 
+                let chance = typeof getAllotmentChance === 'function' ? getAllotmentChance(ipo) : null;
+              %>
+              <strong style="color: var(--amber);"><%= chance || 'TBA' %></strong>
+            </td>
+          </tr>
+          <tr>
+            <td>હાથમાં રકમ (1 Lot નફો)</td>
+            <td>
+              <% 
+                let inHand = typeof getInHandAmount === 'function' ? getInHandAmount(ipo) : null;
+              %>
+              <% if (inHand) { %>
+                <strong class="<%= inHand.isPositive ? 'text-green' : 'text-red' %>" style="font-size: 1.05rem;">
+                  <%= inHand.profitFormatted %>
+                </strong>
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">(કુલ વેચાણ: ₹<%= inHand.totalValue.toLocaleString('en-IN') %>)</span>
+              <% } else { %>
+                TBA
+              <% } %>
             </td>
           </tr>
           <tr><td>Issue Size</td><td><%= ipo.issueSize || '—' %></td></tr>

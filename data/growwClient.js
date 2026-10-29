@@ -7,7 +7,7 @@ const { createCache } = require('./cache');
 const cache = createCache();
 const TTL_MS = 3 * 60 * 1000; // 3 minutes cache
 const USER_AGENT =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
 
 function parseDate(val) {
   if (!val || val === '-') return null;
@@ -113,11 +113,13 @@ async function fetchGrowwIpos() {
   const urls = [
     'https://groww.in/v1/api/stocks_data/v1/all_ipos',
     'https://groww.in/v1/api/stocks_data/v1/ipo/v1/all',
+    'https://groww.in/v1/api/stocks_data/v1/ipo/v2/active',
+    'https://groww.in/v1/api/stocks_data/v1/ipo/v2/upcoming',
   ];
 
   for (const url of urls) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
+    const timer = setTimeout(() => controller.abort(), 10000);
 
     try {
       const res = await fetch(url, {

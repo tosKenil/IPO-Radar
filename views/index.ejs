@@ -16,7 +16,7 @@
       <div class="orb orb-3"></div>
     </div>
     <div class="hero-content">
-      <div class="hero-tag"><i class="fa-solid fa-fire"></i> August 2026 IPO Season</div>
+      <div class="hero-tag"><i class="fa-solid fa-fire"></i> Live IPO Tracker</div>
       <h1 class="hero-title">IPO <span class="gradient-text">Dashboard</span></h1>
       <p class="hero-subtitle">Track all active, upcoming &amp; recently listed IPOs — allotment dates, returns &amp; subscription status at a glance.</p>
 
@@ -89,7 +89,7 @@
       <% if (ipos.length === 0) { %>
         <div class="empty-state">
           <i class="fa-solid fa-inbox"></i>
-          <p>No IPOs found for this filter.</p>
+          <p>No live IPOs found for this filter.</p>
         </div>
       <% } else { %>
       <div class="ipo-grid" id="ipoGrid">
@@ -133,22 +133,39 @@
                 <span class="price-value"><%= ipo.priceband ? '₹' + ipo.priceband : 'TBA' %></span>
               </div>
               <div class="price-item">
+                <span class="price-label">Est. Listing Price</span>
+                <span class="price-value" style="color: var(--green); font-weight: 700;">
+                  <% const cardEst = typeof getEstimateListing === 'function' ? getEstimateListing(ipo) : null; %>
+                  <%= cardEst ? cardEst.listingPriceFormatted : 'TBA' %>
+                </span>
+              </div>
+              <div class="price-item">
                 <span class="price-label">1 Lot Total</span>
                 <span class="price-value" style="color: var(--accent); font-weight: 600;"><% const lotAmt = typeof getOneLotAmount === 'function' ? getOneLotAmount(ipo) : null; %><%= lotAmt ? '₹' + lotAmt.toLocaleString('en-IN') : 'TBA' %></span>
               </div>
               <% } %>
             </div>
 
-            <!-- Return Badge -->
-            <% if (ipo.currentReturnPct !== null) { %>
-            <div class="return-strip <%= parseFloat(ipo.currentReturnPct) >= 0 ? 'positive' : 'negative' %>">
-              <i class="fa-solid <%= parseFloat(ipo.currentReturnPct) >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' %>"></i>
-              <span class="return-label">Current Return</span>
-              <span class="return-value"><%= parseFloat(ipo.currentReturnPct) >= 0 ? '+' : '' %><%= ipo.currentReturnPct %>%</span>
+            <!-- Return Badge (Est. Listing Gain % or Actual Current Return) -->
+            <% 
+              const cardEst = typeof getEstimateListing === 'function' ? getEstimateListing(ipo) : null;
+              const cardExp = typeof getExpectedReturn === 'function' ? getExpectedReturn(ipo) : null;
+            %>
+            <% if (cardEst) { %>
+            <div class="return-strip <%= cardEst.isPositive ? 'positive' : 'negative' %>">
+              <i class="fa-solid <%= cardEst.isPositive ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' %>"></i>
+              <span class="return-label"><%= cardEst.labelGain %> (%)</span>
+              <span class="return-value"><%= cardEst.gainPctFormatted %></span>
+            </div>
+            <% } else if (cardExp) { %>
+            <div class="return-strip <%= cardExp.isPositive ? 'positive' : 'negative' %>">
+              <i class="fa-solid <%= cardExp.isPositive ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' %>"></i>
+              <span class="return-label"><%= cardExp.isEstimated ? 'Est. Listing Gain' : 'Current Return' %></span>
+              <span class="return-value"><%= cardExp.formatted %></span>
             </div>
             <% } %>
 
-            <!-- Dates -->
+            <!-- Dates (Actual SEBI T+3 Dates) -->
             <div class="dates-grid">
               <div class="date-item">
                 <i class="fa-regular fa-calendar"></i>
@@ -173,13 +190,43 @@
               </div>
             </div>
 
-            <!-- Subscription -->
-            <% if (ipo.subscriptionTimes) { %>
-            <div class="sub-row">
-              <span class="sub-label"><i class="fa-solid fa-signal"></i> Subscribed</span>
-              <span class="sub-value"><%= ipo.subscriptionTimes %>x</span>
+            <!-- Subscription & Allotment / In-Hand Row -->
+            <% 
+              const cardChance = typeof getAllotmentChance === 'function' ? getAllotmentChance(ipo) : null;
+              const cardInHand = typeof getInHandAmount === 'function' ? getInHandAmount(ipo) : null;
+            %>
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 10px;">
+              <% if (cardChance) { %>
+              <div class="sub-row">
+                <span class="sub-label"><i class="fa-solid fa-users"></i> 100 એ લાગશે</span>
+                <span class="sub-value" style="font-size: 0.85rem;"><%= cardChance %></span>
+              </div>
+              <% } else if (ipo.subscriptionTimes) { %>
+              <div class="sub-row">
+                <span class="sub-label"><i class="fa-solid fa-signal"></i> Subscribed</span>
+                <span class="sub-value"><%= ipo.subscriptionTimes %>x</span>
+              </div>
+              <% } %>
+
+              <% if (cardEst && cardEst.isEstimated) { %>
+              <div class="sub-row" style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.15);">
+                <span class="sub-label"><i class="fa-solid fa-chart-line" style="color: var(--green);"></i> Est. Listing Price</span>
+                <span class="text-green" style="font-weight: 800; font-size: 0.95rem;">
+                  <%= cardEst.listingPriceFormatted %> <span style="font-size: 0.78rem; opacity: 0.85;">(<%= cardEst.gainPctFormatted %>)</span>
+                </span>
+              </div>
+              <% } %>
+
+              <% if (cardInHand) { %>
+              <div class="sub-row" style="background: <%= cardInHand.isPositive ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)' %>;">
+                <span class="sub-label"><i class="fa-solid fa-hand-holding-dollar"></i> હાથમાં રકમ (1 Lot)</span>
+                <span class="<%= cardInHand.isPositive ? 'text-green' : 'text-red' %>" style="font-weight: 800; font-size: 0.95rem;">
+                  <%= cardInHand.profitFormatted %>
+                  <% if (cardInHand.isEstimated) { %><span style="font-size: 0.72rem; opacity: 0.8; font-weight: 500;">(અંદાજિત)</span><% } %>
+                </span>
+              </div>
+              <% } %>
             </div>
-            <% } %>
           </div>
 
           <div class="card-footer">

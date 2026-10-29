@@ -49,6 +49,17 @@
                 <span class="uc-info-label">Price Band</span>
                 <span class="uc-info-value"><%= ipo.priceband ? '₹' + ipo.priceband : 'TBA' %></span>
               </div>
+              <% const upEst = typeof getEstimateListing === 'function' ? getEstimateListing(ipo) : null; %>
+              <% if (upEst) { %>
+              <div class="uc-info-item">
+                <span class="uc-info-label">Est. Listing Price</span>
+                <span class="uc-info-value" style="color: var(--green); font-weight: 700;"><%= upEst.listingPriceFormatted %></span>
+              </div>
+              <div class="uc-info-item">
+                <span class="uc-info-label">Est. Listing Gain</span>
+                <span class="uc-info-value" style="color: var(--green); font-weight: 700;"><%= upEst.gainPctFormatted %></span>
+              </div>
+              <% } %>
               <div class="uc-info-item">
                 <span class="uc-info-label">Issue Size</span>
                 <span class="uc-info-value"><%= ipo.issueSize %></span>
@@ -64,6 +75,13 @@
                   <%= lotAmt ? '₹' + lotAmt.toLocaleString('en-IN') : 'TBA' %>
                 </span>
               </div>
+              <% const upChance = typeof getAllotmentChance === 'function' ? getAllotmentChance(ipo) : null; %>
+              <% if (upChance) { %>
+              <div class="uc-info-item">
+                <span class="uc-info-label">100 એ લાગશે</span>
+                <span class="uc-info-value" style="color: var(--amber); font-weight: 600;"><%= upChance %></span>
+              </div>
+              <% } %>
             </div>
 
             <div class="uc-dates">

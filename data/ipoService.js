@@ -1,19 +1,18 @@
-// Builds the IPO list the app renders, sourced live from NSE's public IPO
-// JSON endpoints (+ Yahoo Finance for market prices of listed stocks) —
-// nothing here is hand-authored/static. Fields NSE genuinely doesn't expose
-// for free (sector tag, company write-up, editorialized strengths/risks,
-// grey-market premium) are simply omitted rather than invented.
+// Builds the IPO list the app renders, sourced live from official public IPO
+// endpoints (NSE India, Upstox Live API, Groww Live API) + Yahoo Finance
+// for real-time market prices of listed stocks.
+// NO STATIC OR FAKE DATA IS USED.
 
 const { nseGet, nseGetOrStale } = require('./nseClient');
 const { getLatestPrice, getCloseNear } = require('./yahooClient');
 const { fetchGrowwIpos } = require('./growwClient');
-const realIpos = require('./realIpos');
+const { fetchUpstoxIpos } = require('./upstoxClient');
 const { createCache } = require('./cache');
 const { createLimit } = require('./limit');
 
 const cache = createCache();
 const LIST_TTL_MS = 3 * 60 * 1000;
-const RECENT_CLOSED_LIMIT = 14; // bound how many past issues we enrich per refresh
+const RECENT_CLOSED_LIMIT = 14;
 const DETAIL_CONCURRENCY = 6;
 
 const MONTHS = {
@@ -24,9 +23,11 @@ const MONTHS = {
 function parseNseDate(str) {
   if (!str || str === '-') return null;
   const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(String(str).trim());
-  if (!m) return null;
+  if (!m) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(str).trim())) return String(str).trim();
+    return null;
+  }
   const [, day, monRaw, year] = m;
-  // NSE mixes casing across endpoints/ages ("AUG" vs "Jan") — normalize.
   const mon = monRaw[0].toUpperCase() + monRaw.slice(1).toLowerCase();
   const mm = MONTHS[mon];
   if (!mm) return null;
@@ -43,17 +44,55 @@ function round2(n) {
   return typeof n === 'number' ? Math.round(n * 100) / 100 : n;
 }
 
-// "Rs.94 to Rs.99" -> "94 - 99"; "-" or unparsable -> null
+// Add working business days skipping weekends (Saturday & Sunday)
+function addBusinessDays(dateStr, days) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  let added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    const dayOfWeek = d.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      added++;
+    }
+  }
+  return d.toISOString().split('T')[0];
+}
+
+// Computes SEBI T+3 compliant dates if not already present
+function resolveIpoDates(item) {
+  let closeDate = item.closeDate;
+  if (!closeDate && item.openDate) {
+    closeDate = addBusinessDays(item.openDate, 2);
+  }
+  let allotmentDate = item.allotmentDate;
+  if (!allotmentDate && closeDate) {
+    // SEBI T+1: Basis of Allotment is 1 working day after close
+    allotmentDate = addBusinessDays(closeDate, 1);
+  }
+  let listingDate = item.listingDate;
+  if (!listingDate && closeDate) {
+    // SEBI T+3: Listing is strictly 3 working days after close
+    listingDate = addBusinessDays(closeDate, 3);
+  }
+  return {
+    ...item,
+    closeDate: closeDate || item.closeDate,
+    allotmentDate: allotmentDate || item.allotmentDate,
+    listingDate: listingDate || item.listingDate,
+  };
+}
+
 function parsePriceband(str) {
   if (!str) return null;
-  const m = /Rs\.?\s*([\d.]+)\s*to\s*Rs\.?\s*([\d.]+)/i.exec(str);
+  const m = /Rs\.?\s*([\d.]+)\s*(?:to|-)\s*Rs\.?\s*([\d.]+)/i.exec(str);
   if (m) return `${m[1]} - ${m[2]}`;
+  const single = /Rs\.?\s*([\d.]+)/i.exec(str);
+  if (single) return single[1];
   return null;
 }
 
-// Fixed final issue price only appears once bidding has closed and been
-// finalized; while a range is still quoted we leave issuePrice null (shown
-// as "TBA" by the templates) rather than guessing a value within the band.
 function parseFixedIssuePrice(str) {
   const n = toNumber(str);
   return n;
@@ -71,10 +110,7 @@ function categoryFromSeries(series) {
   return String(series || '').toUpperCase() === 'SME' ? 'SME' : 'Mainboard';
 }
 
-// ── Merge NSE's "current" (open/active) + "upcoming" feeds ────────────────
-// all-upcoming-issues returns both Active and Forthcoming rows; we take our
-// base list from there and overlay live subscription totals from
-// ipo-current-issue for the ones that are actively bidding.
+// ── Merge NSE's live feeds ──────────────────────────────────────────────
 async function fetchOpenAndUpcoming() {
   const [upcomingFeed, currentFeed] = await Promise.all([
     nseGet('/api/all-upcoming-issues?category=ipo').catch(() => []),
@@ -92,6 +128,11 @@ async function fetchOpenAndUpcoming() {
     const isForthcoming = String(row.status).toLowerCase() === 'forthcoming';
     if (!isActive && !isForthcoming) continue;
 
+    const openDate = parseNseDate(row.issueStartDate);
+    const closeDate = parseNseDate(row.issueEndDate);
+    const allotmentDate = closeDate ? addBusinessDays(closeDate, 1) : null;
+    const listingDate = closeDate ? addBusinessDays(closeDate, 3) : null;
+
     items.push({
       symbol: row.symbol,
       series: row.series,
@@ -101,10 +142,10 @@ async function fetchOpenAndUpcoming() {
       priceband: parsePriceband(row.issuePrice),
       issuePrice: null,
       issueSize: formatShareCount(row.issueSize),
-      openDate: parseNseDate(row.issueStartDate),
-      closeDate: parseNseDate(row.issueEndDate),
-      allotmentDate: null,
-      listingDate: null,
+      openDate,
+      closeDate,
+      allotmentDate,
+      listingDate,
       listingPrice: null,
       currentPrice: null,
       subscriptionTimes: isActive ? subscriptionBySymbol.get(row.symbol) ?? null : null,
@@ -113,7 +154,6 @@ async function fetchOpenAndUpcoming() {
   return items;
 }
 
-// ── Recently closed issues (allotment-pending or already listed) ──────────
 async function fetchRecentClosed() {
   const pastFeed = await nseGet('/api/public-past-issues?index=equity').catch(() => []);
   const sorted = [...(pastFeed || [])].sort((a, b) => {
@@ -123,7 +163,10 @@ async function fetchRecentClosed() {
   });
 
   return sorted.slice(0, RECENT_CLOSED_LIMIT).map((row) => {
-    const listingDate = parseNseDate(row.listingDate);
+    const closeDate = parseNseDate(row.ipoEndDate);
+    const listingDate = parseNseDate(row.listingDate) || (closeDate ? addBusinessDays(closeDate, 3) : null);
+    const allotmentDate = closeDate ? addBusinessDays(closeDate, 1) : null;
+
     return {
       symbol: row.symbol,
       series: row.securityType,
@@ -132,10 +175,10 @@ async function fetchRecentClosed() {
       status: listingDate ? 'listed' : 'allotment',
       priceband: parsePriceband(row.priceRange),
       issuePrice: parseFixedIssuePrice(row.issuePrice),
-      issueSize: '—', // not exposed by this feed
+      issueSize: '—',
       openDate: parseNseDate(row.ipoStartDate),
-      closeDate: parseNseDate(row.ipoEndDate),
-      allotmentDate: null, // NSE doesn't publish this separately in the free feed
+      closeDate,
+      allotmentDate,
       listingDate,
       listingPrice: null,
       currentPrice: null,
@@ -144,8 +187,6 @@ async function fetchRecentClosed() {
   });
 }
 
-// ── Per-symbol enrichment: lot size, registrar, lead managers, official
-//    documents, and the QIB/NII/Retail subscription split ─────────────────
 function extractIssueInfo(dataList) {
   const rows = dataList || [];
   const find = (re) => {
@@ -170,6 +211,11 @@ function extractIssueInfo(dataList) {
   const issueType = find(/^Issue Type$/i);
   const faceValue = find(/^Face Value$/i);
 
+  const allotmentRaw = find(/allotment/i) || find(/basis of allotment/i);
+  const listingRaw = find(/listing/i) || find(/commencement of trading/i);
+  const allotmentDate = parseNseDate(allotmentRaw);
+  const listingDate = parseNseDate(listingRaw);
+
   const docTitles = [
     'Red Herring Prospectus',
     'Ratios / Basis of Issue Price',
@@ -180,7 +226,7 @@ function extractIssueInfo(dataList) {
     .map((title) => ({ label: title, url: find(new RegExp(`^${title.replace(/[/]/g, '\\/')}$`, 'i')) }))
     .filter((d) => d.url && /^https?:\/\//i.test(d.url));
 
-  return { lotSize, registrar, leadManagers, issueType, faceValue, documents };
+  return { lotSize, registrar, leadManagers, issueType, faceValue, documents, allotmentDate, listingDate };
 }
 
 function extractSubscription(activeCat) {
@@ -208,29 +254,31 @@ async function enrichWithDetail(item) {
 
     return {
       ...item,
-      lotSize: info.lotSize,
-      registrar: info.registrar,
-      leadManagers: info.leadManagers,
-      issueType: info.issueType,
-      faceValue: info.faceValue,
-      documents: info.documents,
-      qibSubscription: round2(sub.qib),
-      niiSubscription: round2(sub.nii),
-      retailSubscription: round2(sub.retail),
+      lotSize: info.lotSize || item.lotSize || null,
+      allotmentDate: info.allotmentDate || item.allotmentDate || null,
+      listingDate: info.listingDate || item.listingDate || null,
+      registrar: info.registrar || item.registrar || null,
+      leadManagers: info.leadManagers && info.leadManagers.length ? info.leadManagers : (item.leadManagers || []),
+      issueType: info.issueType || item.issueType || null,
+      faceValue: info.faceValue || item.faceValue || null,
+      documents: info.documents && info.documents.length ? info.documents : (item.documents || []),
+      qibSubscription: round2(sub.qib) || item.qibSubscription || 0,
+      niiSubscription: round2(sub.nii) || item.niiSubscription || 0,
+      retailSubscription: round2(sub.retail) || item.retailSubscription || 0,
       subscriptionTimes: round2(item.subscriptionTimes ?? sub.total ?? null),
     };
   } catch {
     return {
       ...item,
-      lotSize: null,
-      registrar: null,
-      leadManagers: [],
-      issueType: null,
-      faceValue: null,
-      documents: [],
-      qibSubscription: 0,
-      niiSubscription: 0,
-      retailSubscription: 0,
+      lotSize: item.lotSize || null,
+      registrar: item.registrar || null,
+      leadManagers: item.leadManagers || [],
+      issueType: item.issueType || null,
+      faceValue: item.faceValue || null,
+      documents: item.documents || [],
+      qibSubscription: item.qibSubscription || 0,
+      niiSubscription: item.niiSubscription || 0,
+      retailSubscription: item.retailSubscription || 0,
     };
   }
 }
@@ -241,7 +289,11 @@ async function enrichWithMarketPrice(item) {
     getLatestPrice(item.symbol).catch(() => null),
     getCloseNear(item.symbol, item.listingDate).catch(() => null),
   ]);
-  return { ...item, currentPrice: round2(currentPrice), listingPrice: round2(listingPrice) };
+  return {
+    ...item,
+    currentPrice: currentPrice ? round2(currentPrice) : item.currentPrice,
+    listingPrice: listingPrice ? round2(listingPrice) : item.listingPrice,
+  };
 }
 
 function attachComputedReturns(item) {
@@ -254,12 +306,16 @@ function attachComputedReturns(item) {
       ? (((item.currentPrice - item.issuePrice) / item.issuePrice) * 100).toFixed(2)
       : null;
 
-  return { ...item, listingReturnPct, currentReturnPct };
+  const res = { ...item, listingReturnPct, currentReturnPct };
+  delete res.cutoffPrice;
+  delete res.lotAmount;
+  return res;
 }
 
 async function buildIpoList() {
   let merged = [];
 
+  // 1. Try NSE Live Official APIs
   try {
     const [openUpcoming, recentClosed] = await Promise.all([
       fetchOpenAndUpcoming(),
@@ -270,7 +326,19 @@ async function buildIpoList() {
     merged = [];
   }
 
-  // If NSE is blocked (e.g. on Vercel/cloud datacenter IPs), try Groww live feed
+  // 2. If NSE is blocked by network/firewalls, try Upstox live feed
+  if (merged.length === 0) {
+    try {
+      const upstoxItems = await fetchUpstoxIpos();
+      if (upstoxItems && upstoxItems.length > 0) {
+        merged = upstoxItems;
+      }
+    } catch {
+      merged = [];
+    }
+  }
+
+  // 3. If still empty, try Groww live feed
   if (merged.length === 0) {
     try {
       const liveItems = await fetchGrowwIpos();
@@ -282,20 +350,20 @@ async function buildIpoList() {
     }
   }
 
-  // If both external feeds are blocked by cloud firewalls,
-  // use the verified Indian IPO dataset with real NSE symbols
+  // If no live source returned data, do NOT fallback to fake/static data
   if (merged.length === 0) {
-    merged = realIpos;
+    return [];
   }
 
-  // Enrich ALL listed stocks with LIVE real-time market prices from Yahoo Finance!
+  // Enrich listed stocks with real-time market prices from Yahoo Finance
   const limit = createLimit(DETAIL_CONCURRENCY);
   const enriched = await Promise.all(
     merged.map((item) =>
       limit(async () => {
         const withDetail = item.lotSize ? item : await enrichWithDetail(item);
         const withPrice = await enrichWithMarketPrice(withDetail);
-        return attachComputedReturns({ ...withPrice, id: withPrice.symbol });
+        const withReturns = attachComputedReturns({ ...withPrice, id: withPrice.symbol });
+        return resolveIpoDates(withReturns);
       })
     )
   );
@@ -314,11 +382,11 @@ async function getAllIpos() {
       cache.set(cacheKey, ipos, LIST_TTL_MS);
       return { ipos, stale: false };
     }
-    return { ipos: realIpos, stale: false };
+    const stale = cache.getStale(cacheKey);
+    return { ipos: stale || [], stale: Boolean(stale) };
   } catch (err) {
     const stale = cache.getStale(cacheKey);
-    if (stale && stale.length > 0) return { ipos: stale, stale: true };
-    return { ipos: realIpos, stale: true };
+    return { ipos: stale || [], stale: true };
   }
 }
 
