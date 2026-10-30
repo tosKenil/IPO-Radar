@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: 'Upcoming IPOs', activePage: 'upcoming' }) %>
+<%- include('partials/header', { title: 'Upcoming IPOs', activePage: 'upcoming', searchQuery: typeof searchQuery !== 'undefined' ? searchQuery : '' }) %>
 
 <% if (typeof dataStale !== 'undefined' && dataStale) { %>
 <div class="stale-banner">
@@ -21,17 +21,64 @@
     </div>
   </section>
 
+  <!-- Filter & Search Section -->
+  <section class="filter-section" style="padding-bottom: 16px;">
+    <div class="container">
+      <div class="filter-toolbar" style="justify-content: flex-end;">
+        <div class="live-search-wrapper" style="width: 100%; max-width: 420px;">
+          <i class="fa-solid fa-magnifying-glass live-search-icon"></i>
+          <input 
+            type="text" 
+            id="upcomingSearchInput" 
+            class="live-search-input" 
+            placeholder="Search upcoming IPOs..." 
+            value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" id="upcomingSearchClear" class="live-search-clear" title="Clear Search" style="display: <%= (typeof searchQuery !== 'undefined' && searchQuery) ? 'inline-flex' : 'none' %>;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Status Bar -->
+      <div id="upcomingStatusBar" class="search-status-bar" style="display: <%= (typeof searchQuery !== 'undefined' && searchQuery) ? 'flex' : 'none' %>;">
+        <span class="search-status-text">
+          <i class="fa-solid fa-filter"></i>
+          Showing <strong id="upcomingSearchCount"><%= ipos.length %></strong> Upcoming IPO<%= ipos.length === 1 ? '' : 's' %> <span id="upcomingSearchLabel"><%= searchQuery ? `matching "${searchQuery}"` : '' %></span>
+        </span>
+        <button type="button" id="btnResetUpcomingSearch" class="btn-reset-search">Clear Search</button>
+      </div>
+    </div>
+  </section>
+
   <section class="cards-section">
     <div class="container">
+      <!-- Dynamic empty message for client live search -->
+      <div id="noResultsUpcoming" class="empty-state" style="display: none;">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <h3>No Upcoming IPOs found</h3>
+        <p>No upcoming IPO matches your search query. Try another keyword or reset.</p>
+        <button type="button" class="btn-primary" id="btnResetUpcomingEmpty" style="margin-top: 14px;">Reset Search</button>
+      </div>
+
       <% if (ipos.length === 0) { %>
         <div class="empty-state">
           <i class="fa-solid fa-rocket"></i>
-          <p>No upcoming IPOs at the moment. Check back soon!</p>
+          <p>No upcoming IPOs found<%= searchQuery ? ` matching "${searchQuery}"` : '' %>.</p>
+          <% if (searchQuery) { %>
+            <a href="/upcoming" class="btn-primary" style="margin-top: 14px;">Clear Search</a>
+          <% } %>
         </div>
       <% } else { %>
-      <div class="upcoming-grid">
+      <div class="upcoming-grid" id="upcomingGrid">
         <% ipos.forEach(function(ipo) { %>
-        <div class="upcoming-card">
+        <div class="upcoming-card"
+             data-name="<%= (ipo.name || '').toLowerCase() %>"
+             data-symbol="<%= (ipo.symbol || '').toLowerCase() %>"
+             data-category="<%= (ipo.category || '').toLowerCase() %>"
+        >
           <div class="uc-header">
             <div class="ipo-logo"><%= ipo.symbol.charAt(0) %></div>
             <div class="uc-title-area">
@@ -138,5 +185,102 @@
     </div>
   </section>
 </main>
+
+<script>
+  // Client-side Instant Search for Upcoming IPOs
+  (function() {
+    const input = document.getElementById('upcomingSearchInput');
+    const clearBtn = document.getElementById('upcomingSearchClear');
+    const statusBar = document.getElementById('upcomingStatusBar');
+    const countSpan = document.getElementById('upcomingSearchCount');
+    const labelSpan = document.getElementById('upcomingSearchLabel');
+    const btnReset = document.getElementById('btnResetUpcomingSearch');
+    const btnResetEmpty = document.getElementById('btnResetUpcomingEmpty');
+    const noResults = document.getElementById('noResultsUpcoming');
+    const grid = document.getElementById('upcomingGrid');
+
+    if (!grid) return;
+
+    const cards = Array.from(grid.querySelectorAll('.upcoming-card'));
+
+    function applyFilter(query) {
+      const q = (query || '').toLowerCase().trim();
+
+      if (clearBtn) {
+        clearBtn.style.display = q ? 'inline-flex' : 'none';
+      }
+
+      let visibleCount = 0;
+
+      cards.forEach(card => {
+        if (!q) {
+          card.style.display = '';
+          visibleCount++;
+          return;
+        }
+
+        const name = card.getAttribute('data-name') || '';
+        const symbol = card.getAttribute('data-symbol') || '';
+        const cat = card.getAttribute('data-category') || '';
+        const text = card.textContent.toLowerCase();
+
+        if (name.includes(q) || symbol.includes(q) || cat.includes(q) || text.includes(q)) {
+          card.style.display = '';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      if (statusBar) {
+        if (q) {
+          statusBar.style.display = 'flex';
+          if (countSpan) countSpan.textContent = visibleCount;
+          if (labelSpan) labelSpan.textContent = `matching "${q}"`;
+        } else {
+          statusBar.style.display = 'none';
+        }
+      }
+
+      if (noResults) {
+        if (visibleCount === 0 && q) {
+          noResults.style.display = 'block';
+          grid.style.display = 'none';
+        } else {
+          noResults.style.display = 'none';
+          grid.style.display = 'grid';
+        }
+      }
+    }
+
+    if (input) {
+      input.addEventListener('input', function(e) {
+        applyFilter(e.target.value);
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function() {
+        if (input) input.value = '';
+        applyFilter('');
+        if (input) input.focus();
+      });
+    }
+
+    if (btnReset) {
+      btnReset.addEventListener('click', function() {
+        if (input) input.value = '';
+        applyFilter('');
+      });
+    }
+
+    if (btnResetEmpty) {
+      btnResetEmpty.addEventListener('click', function() {
+        if (input) input.value = '';
+        applyFilter('');
+      });
+    }
+  })();
+</script>
 
 <%- include('partials/footer') %>

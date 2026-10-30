@@ -1,0 +1,363 @@
+<%- include('partials/header', { title: 'IPO Allotment Status Check' , activePage: 'allotment-status' }) %>
+
+  <main class="main">
+    <!-- Hero Section -->
+    <section class="page-hero">
+      <div class="hero-bg-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+      </div>
+      <div class="page-hero-content">
+        <div class="hero-tag"><i class="fa-solid fa-stamp"></i> Official Registrar Lookup</div>
+        <h1 class="hero-title">IPO Allotment <span class="gradient-text">Status Check</span></h1>
+        <p class="hero-subtitle">
+          મળ્યો છે કે નહીં તે જાણો! Check your IPO allotment status online by PAN, Application No, or DP Client ID (Like
+          KFin Technologies / Link Intime).
+        </p>
+      </div>
+    </section>
+
+    <section class="cards-section">
+      <div class="container" style="max-width: 860px;">
+
+        <!-- Main Status Card -->
+        <div class="glass-card status-lookup-card">
+          <div class="status-lookup-header">
+            <div class="lookup-badge">
+              <i class="fa-solid fa-shield-halved"></i> Registrar Integrated System
+            </div>
+            <h2>Check Allotment Status</h2>
+            <p>Select the IPO company, choose identification type and enter your details below.</p>
+          </div>
+
+          <form id="allotmentForm" class="allotment-form">
+            <!-- IPO Selection -->
+            <div class="form-group">
+              <label for="ipoSelect" class="form-label">
+                <i class="fa-solid fa-building"></i> Select IPO Company
+              </label>
+              <div class="custom-select-wrapper">
+                <select id="ipoSelect" name="ipo" class="custom-select" required>
+                  <option value="" disabled <%=!selectedSymbol ? 'selected' : '' %>>-- Select Company --</option>
+                  <% ipos.forEach(function(ipo) { %>
+                    <option value="<%= ipo.symbol %>" <%=(selectedSymbol &&
+                      selectedSymbol.toUpperCase()===ipo.symbol.toUpperCase()) ? 'selected' : '' %>>
+                      <%= ipo.name %> (<%= ipo.category %> - NSE: <%= ipo.symbol %>) [<%= ipo.status.toUpperCase() %>]
+                    </option>
+                    <% }) %>
+                </select>
+                <i class="fa-solid fa-chevron-down select-arrow"></i>
+              </div>
+            </div>
+
+            <!-- Query Type Switcher (Radio tabs) -->
+            <div class="form-group">
+              <label class="form-label"><i class="fa-solid fa-id-badge"></i> Identification Mode</label>
+              <div class="query-type-tabs">
+                <label class="query-tab">
+                  <input type="radio" name="queryType" value="pan" checked />
+                  <span><i class="fa-regular fa-address-card"></i> PAN Card</span>
+                </label>
+                <label class="query-tab">
+                  <input type="radio" name="queryType" value="appno" />
+                  <span><i class="fa-solid fa-file-invoice"></i> Application No</span>
+                </label>
+                <label class="query-tab">
+                  <input type="radio" name="queryType" value="dpid" />
+                  <span><i class="fa-solid fa-wallet"></i> DP Client ID</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Input Value -->
+            <div class="form-group">
+              <label for="queryInput" id="queryInputLabel" class="form-label">
+                <i class="fa-solid fa-credit-card"></i> Enter Permanent Account Number (PAN)
+              </label>
+              <div class="input-with-icon">
+                <input type="text" id="queryInput" name="queryValue" class="form-control text-uppercase"
+                  placeholder="e.g. ABCDE1234F" maxlength="10" required autocomplete="off" spellcheck="false" />
+                <span id="inputClearBtn" class="input-clear-btn" style="display: none;"><i
+                    class="fa-solid fa-xmark"></i></span>
+              </div>
+              <span id="inputHint" class="input-hint">Enter your 10-character PAN registered with your demat
+                account.</span>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="form-actions">
+              <button type="submit" id="btnCheckStatus" class="btn-primary btn-submit-status">
+                <i class="fa-solid fa-magnifying-glass"></i> Check Status
+              </button>
+              <button type="reset" id="btnResetForm" class="btn-secondary">
+                <i class="fa-solid fa-rotate-left"></i> Reset
+              </button>
+            </div>
+          </form>
+
+          <!-- Loader -->
+          <div id="statusLoader" class="status-loader" style="display: none;">
+            <div class="spinner"></div>
+            <p>Fetching allotment records from registrar...</p>
+          </div>
+
+          <!-- Alert Error Box -->
+          <div id="statusAlert" class="status-alert alert-danger" style="display: none;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span id="statusAlertText"></span>
+          </div>
+
+          <!-- Result Box (Like KFin Technologies) -->
+          <div id="statusResult" class="status-result" style="display: none;">
+            <div class="result-header" id="resultHeaderBanner">
+              <div class="result-badge-icon" id="resultIcon">
+                <i class="fa-solid fa-circle-check"></i>
+              </div>
+              <div>
+                <h3 id="resultStatusTitle">ALLOTTED</h3>
+                <p id="resultStatusSubtitle">Congratulations! You have received allotment.</p>
+              </div>
+            </div>
+
+            <!-- Allotment Details Table -->
+            <div class="result-table-wrapper">
+              <table class="result-table">
+                <tr>
+                  <td>Company Name</td>
+                  <td id="resIpoName"><strong>-</strong></td>
+                </tr>
+                <tr>
+                  <td>Registrar</td>
+                  <td id="resRegistrar">-</td>
+                </tr>
+                <tr>
+                  <td>Application Number</td>
+                  <td id="resAppNo"><strong>-</strong></td>
+                </tr>
+                <tr>
+                  <td>DP Client ID</td>
+                  <td id="resDpId">-</td>
+                </tr>
+                <tr>
+                  <td>PAN (Masked)</td>
+                  <td id="resPan"><strong>-</strong></td>
+                </tr>
+                <tr>
+                  <td>Shares Applied</td>
+                  <td id="resSharesApplied">-</td>
+                </tr>
+                <tr>
+                  <td>Shares Allotted</td>
+                  <td id="resSharesAllotted" class="highlight-shares"><strong>-</strong></td>
+                </tr>
+                <tr>
+                  <td>Cut-off / Issue Price</td>
+                  <td id="resCutoffPrice">-</td>
+                </tr>
+                <tr>
+                  <td>Total Amount Paid</td>
+                  <td id="resTotalAmount">-</td>
+                </tr>
+                <tr>
+                  <td>Refund / Unblocked Amount</td>
+                  <td id="resRefundAmount" class="highlight-refund">-</td>
+                </tr>
+              </table>
+            </div>
+
+            <!-- Official External Check Link -->
+            <div class="result-footer">
+              <p id="resAllotmentMessage" class="result-msg-box"></p>
+              <a href="https://ipostatus.kfintech.com/" id="resOfficialLink" target="_blank" rel="noopener noreferrer"
+                class="btn-external-link">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Verify on Official KFintech Portal
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Informational Guide Card -->
+        <div class="glass-card" style="margin-top: 24px;">
+          <h3 class="card-title"><i class="fa-solid fa-circle-question"></i> How IPO Allotment is Checked</h3>
+          <div class="guide-steps-grid">
+            <div class="guide-step">
+              <div class="step-num">1</div>
+              <div>
+                <strong>Select IPO</strong>
+                <p>Choose the company whose allotment you applied for.</p>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">2</div>
+              <div>
+                <strong>Enter PAN / App No</strong>
+                <p>PAN is the fastest mode. You can also use DP ID or ASBA application number.</p>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="step-num">3</div>
+              <div>
+                <strong>Instant Result</strong>
+                <p>View total shares applied, shares allotted, and refund/debit amount.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const form = document.getElementById('allotmentForm');
+      const queryInput = document.getElementById('queryInput');
+      const queryInputLabel = document.getElementById('queryInputLabel');
+      const inputHint = document.getElementById('inputHint');
+      const inputClearBtn = document.getElementById('inputClearBtn');
+      const loader = document.getElementById('statusLoader');
+      const alertBox = document.getElementById('statusAlert');
+      const alertText = document.getElementById('statusAlertText');
+      const resultBox = document.getElementById('statusResult');
+      const btnCheck = document.getElementById('btnCheckStatus');
+      const officialLink = document.getElementById('resOfficialLink');
+
+      // Radio Tab Mode Change
+      document.querySelectorAll('input[name="queryType"]').forEach(radio => {
+        radio.addEventListener('change', function () {
+          const val = this.value;
+          queryInput.value = '';
+          inputClearBtn.style.display = 'none';
+
+          if (val === 'pan') {
+            queryInputLabel.innerHTML = '<i class="fa-solid fa-credit-card"></i> Enter Permanent Account Number (PAN)';
+            queryInput.placeholder = 'e.g. ABCDE1234F';
+            queryInput.maxLength = 10;
+            queryInput.className = 'form-control text-uppercase';
+            inputHint.textContent = 'Enter your 10-character PAN registered with your demat account.';
+          } else if (val === 'appno') {
+            queryInputLabel.innerHTML = '<i class="fa-solid fa-file-invoice"></i> Enter Application Number';
+            queryInput.placeholder = 'e.g. 102938475';
+            queryInput.maxLength = 20;
+            queryInput.className = 'form-control';
+            inputHint.textContent = 'Enter your ASBA / UPI IPO application number provided by bank/broker.';
+          } else if (val === 'dpid') {
+            queryInputLabel.innerHTML = '<i class="fa-solid fa-wallet"></i> Enter DP Client ID';
+            queryInput.placeholder = 'e.g. 1208160012345678 / IN300123...';
+            queryInput.maxLength = 16;
+            queryInput.className = 'form-control';
+            inputHint.textContent = 'Enter your 16-digit CDSL BO ID or 16-character NSDL DP Client ID.';
+          }
+          queryInput.focus();
+        });
+      });
+
+      queryInput.addEventListener('input', function () {
+        inputClearBtn.style.display = this.value.length > 0 ? 'inline-flex' : 'none';
+        if (document.querySelector('input[name="queryType"]:checked').value === 'pan') {
+          this.value = this.value.toUpperCase();
+        }
+      });
+
+      inputClearBtn.addEventListener('click', function () {
+        queryInput.value = '';
+        inputClearBtn.style.display = 'none';
+        queryInput.focus();
+      });
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const ipo = document.getElementById('ipoSelect').value;
+        const queryType = document.querySelector('input[name="queryType"]:checked').value;
+        const queryValue = queryInput.value.trim();
+
+        if (!ipo) {
+          showAlert('Please select an IPO company.');
+          return;
+        }
+        if (!queryValue) {
+          showAlert('Please enter your PAN, Application No, or DP Client ID.');
+          return;
+        }
+
+        // Hide results, show loader
+        alertBox.style.display = 'none';
+        resultBox.style.display = 'none';
+        loader.style.display = 'block';
+        btnCheck.disabled = true;
+
+        try {
+          const res = await fetch('/api/allotment-check', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ipo, queryType, queryValue }),
+          });
+
+          const json = await res.json();
+          loader.style.display = 'none';
+          btnCheck.disabled = false;
+
+          if (!json.success) {
+            showAlert(json.error || 'Failed to check allotment status.');
+            return;
+          }
+
+          renderResult(json.data);
+        } catch (err) {
+          loader.style.display = 'none';
+          btnCheck.disabled = false;
+          showAlert('Network error occurred while fetching allotment records. Please try again.');
+        }
+      });
+
+      function showAlert(msg) {
+        alertText.textContent = msg;
+        alertBox.style.display = 'flex';
+        resultBox.style.display = 'none';
+      }
+
+      function renderResult(d) {
+        const isAllotted = d.allotmentStatus === 'ALLOTTED';
+        const headerBanner = document.getElementById('resultHeaderBanner');
+        const icon = document.getElementById('resultIcon');
+        const title = document.getElementById('resultStatusTitle');
+        const subtitle = document.getElementById('resultStatusSubtitle');
+
+        if (isAllotted) {
+          headerBanner.className = 'result-header allotted';
+          icon.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+          title.textContent = 'ALLOTTED';
+          subtitle.textContent = `Congratulations! You have received allotment of ${d.sharesAllotted} shares.`;
+        } else {
+          headerBanner.className = 'result-header not-allotted';
+          icon.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
+          title.textContent = 'NON-ALLOTTED';
+          subtitle.textContent = 'Shares were not allotted. ASBA funds unblocking / refund is initiated.';
+        }
+
+        document.getElementById('resIpoName').textContent = d.ipoName;
+        document.getElementById('resRegistrar').textContent = d.registrar;
+        document.getElementById('resAppNo').textContent = d.applicationNumber;
+        document.getElementById('resDpId').textContent = d.dpClientId;
+        document.getElementById('resPan').textContent = d.panMasked;
+        document.getElementById('resSharesApplied').textContent = `${d.sharesApplied} Shares`;
+        document.getElementById('resSharesAllotted').innerHTML = isAllotted
+          ? `<strong style="color: var(--green); font-size: 1.15rem;">${d.sharesAllotted} Shares</strong>`
+          : `<strong style="color: var(--red); font-size: 1.1rem;">0 (Nil)</strong>`;
+        document.getElementById('resCutoffPrice').textContent = `₹${d.cutoffPrice}`;
+        document.getElementById('resTotalAmount').textContent = `₹${d.totalAmountPaid.toLocaleString('en-IN')}`;
+        document.getElementById('resRefundAmount').textContent = `₹${d.refundAmount.toLocaleString('en-IN')}`;
+        document.getElementById('resAllotmentMessage').textContent = d.allotmentMessage;
+
+        officialLink.href = d.registrarCheckUrl;
+        officialLink.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> Verify on Official ${d.registrar} Portal`;
+
+        resultBox.style.display = 'block';
+        resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    })();
+  </script>
+
+  <%- include('partials/footer') %>

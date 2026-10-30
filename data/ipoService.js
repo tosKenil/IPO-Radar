@@ -1,19 +1,19 @@
 // Builds the IPO list the app renders, sourced live from official public IPO
 // endpoints (NSE India, Upstox Live API, Groww Live API) + Yahoo Finance
 // for real-time market prices of listed stocks.
-// NO STATIC OR FAKE DATA IS USED.
+// FULLY DYNAMIC — NO HARDCODED OR COMPANY-SPECIFIC STATUS CONDITIONS.
 
 const { nseGet, nseGetOrStale } = require('./nseClient');
 const { getLatestPrice, getCloseNear } = require('./yahooClient');
 const { fetchGrowwIpos } = require('./growwClient');
 const { fetchUpstoxIpos } = require('./upstoxClient');
-const { createCache } = require('./cache');
 const { createLimit } = require('./limit');
 
-const cache = createCache();
-const LIST_TTL_MS = 3 * 60 * 1000;
 const RECENT_CLOSED_LIMIT = 14;
 const DETAIL_CONCURRENCY = 6;
+
+// Emergency buffer ONLY used if all external networks completely fail
+let lastSuccessfulIpos = null;
 
 const MONTHS = {
   Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
@@ -60,7 +60,7 @@ function addBusinessDays(dateStr, days) {
   return d.toISOString().split('T')[0];
 }
 
-// Computes SEBI T+3 compliant dates if not already present
+// Computes SEBI T+3 compliant dates dynamically for any IPO
 function resolveIpoDates(item) {
   let closeDate = item.closeDate;
   if (!closeDate && item.openDate) {
@@ -68,16 +68,34 @@ function resolveIpoDates(item) {
   }
   let allotmentDate = item.allotmentDate;
   if (!allotmentDate && closeDate) {
-    // SEBI T+1: Basis of Allotment is 1 working day after close
     allotmentDate = addBusinessDays(closeDate, 1);
   }
   let listingDate = item.listingDate;
   if (!listingDate && closeDate) {
-    // SEBI T+3: Listing is strictly 3 working days after close
     listingDate = addBusinessDays(closeDate, 3);
   }
+
+  // 100% Dynamic status determination based on current time and dates:
+  // If an upstream API already identified it as allotment / closed, preserve it
+  let status = item.status;
+  if (status === 'closed' || status === 'bidding_closed' || status === 'allotment') {
+    status = 'allotment';
+  } else {
+    const now = new Date();
+    if (listingDate && new Date(listingDate) <= now) {
+      status = 'listed';
+    } else if (closeDate && new Date(closeDate) < now) {
+      status = 'allotment';
+    } else if (item.openDate && new Date(item.openDate) <= now) {
+      status = 'open';
+    } else if (item.openDate && new Date(item.openDate) > now) {
+      status = 'upcoming';
+    }
+  }
+
   return {
     ...item,
+    status: status || item.status,
     closeDate: closeDate || item.closeDate,
     allotmentDate: allotmentDate || item.allotmentDate,
     listingDate: listingDate || item.listingDate,
@@ -94,8 +112,7 @@ function parsePriceband(str) {
 }
 
 function parseFixedIssuePrice(str) {
-  const n = toNumber(str);
-  return n;
+  return toNumber(str);
 }
 
 function formatShareCount(sharesStr) {
@@ -268,18 +285,7 @@ async function enrichWithDetail(item) {
       subscriptionTimes: round2(item.subscriptionTimes ?? sub.total ?? null),
     };
   } catch {
-    return {
-      ...item,
-      lotSize: item.lotSize || null,
-      registrar: item.registrar || null,
-      leadManagers: item.leadManagers || [],
-      issueType: item.issueType || null,
-      faceValue: item.faceValue || null,
-      documents: item.documents || [],
-      qibSubscription: item.qibSubscription || 0,
-      niiSubscription: item.niiSubscription || 0,
-      retailSubscription: item.retailSubscription || 0,
-    };
+    return item;
   }
 }
 
@@ -312,45 +318,73 @@ function attachComputedReturns(item) {
   return res;
 }
 
+// ── Merge Multiple Sources and Deduplicate Dynamically ───────────────────
+function mergeIpoSources(items) {
+  const map = new Map();
+
+  for (const item of items) {
+    if (!item) continue;
+    const key = (item.symbol || item.name || '').toUpperCase().trim();
+    if (!key) continue;
+
+    if (!map.has(key)) {
+      map.set(key, { ...item });
+    } else {
+      // Merge best fields: keep non-null and richer data
+      const existing = map.get(key);
+      map.set(key, {
+        ...existing,
+        ...item,
+        status: item.status || existing.status,
+        priceband: item.priceband || existing.priceband,
+        issuePrice: item.issuePrice || existing.issuePrice,
+        lotSize: item.lotSize || existing.lotSize,
+        issueSize: (item.issueSize && item.issueSize !== '—') ? item.issueSize : existing.issueSize,
+        openDate: item.openDate || existing.openDate,
+        closeDate: item.closeDate || existing.closeDate,
+        allotmentDate: item.allotmentDate || existing.allotmentDate,
+        listingDate: item.listingDate || existing.listingDate,
+        subscriptionTimes: item.subscriptionTimes || existing.subscriptionTimes,
+        retailSubscription: item.retailSubscription || existing.retailSubscription,
+        registrar: item.registrar || existing.registrar,
+        leadManagers: (item.leadManagers && item.leadManagers.length) ? item.leadManagers : existing.leadManagers,
+      });
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+// ── 100% Dynamic Live Build: Fetches Groww, Upstox, and NSE simultaneously ───────────
 async function buildIpoList() {
-  let merged = [];
+  const [growwRes, upstoxRes, nseRes] = await Promise.allSettled([
+    fetchGrowwIpos(),
+    fetchUpstoxIpos(),
+    Promise.all([fetchOpenAndUpcoming(), fetchRecentClosed()]),
+  ]);
 
-  // 1. Try NSE Live Official APIs
-  try {
-    const [openUpcoming, recentClosed] = await Promise.all([
-      fetchOpenAndUpcoming(),
-      fetchRecentClosed(),
-    ]);
-    merged = [...openUpcoming, ...recentClosed].filter((i) => i.symbol);
-  } catch {
-    merged = [];
+  const rawList = [];
+
+  // 1. Groww Live Feed
+  if (growwRes.status === 'fulfilled' && Array.isArray(growwRes.value)) {
+    rawList.push(...growwRes.value);
   }
 
-  // 2. If NSE is blocked by network/firewalls, try Upstox live feed
-  if (merged.length === 0) {
-    try {
-      const upstoxItems = await fetchUpstoxIpos();
-      if (upstoxItems && upstoxItems.length > 0) {
-        merged = upstoxItems;
-      }
-    } catch {
-      merged = [];
-    }
+  // 2. Upstox Live Feed
+  if (upstoxRes.status === 'fulfilled' && Array.isArray(upstoxRes.value)) {
+    rawList.push(...upstoxRes.value);
   }
 
-  // 3. If still empty, try Groww live feed
-  if (merged.length === 0) {
-    try {
-      const liveItems = await fetchGrowwIpos();
-      if (liveItems && liveItems.length > 0) {
-        merged = liveItems;
-      }
-    } catch {
-      merged = [];
-    }
+  // 3. NSE Official Live Feed
+  if (nseRes.status === 'fulfilled' && Array.isArray(nseRes.value)) {
+    const [openUpcoming, recentClosed] = nseRes.value;
+    if (Array.isArray(openUpcoming)) rawList.push(...openUpcoming);
+    if (Array.isArray(recentClosed)) rawList.push(...recentClosed);
   }
 
-  // If no live source returned data, do NOT fallback to fake/static data
+  // Deduplicate and merge live records dynamically
+  const merged = mergeIpoSources(rawList.filter((i) => i && (i.symbol || i.name)));
+
   if (merged.length === 0) {
     return [];
   }
@@ -362,7 +396,7 @@ async function buildIpoList() {
       limit(async () => {
         const withDetail = item.lotSize ? item : await enrichWithDetail(item);
         const withPrice = await enrichWithMarketPrice(withDetail);
-        const withReturns = attachComputedReturns({ ...withPrice, id: withPrice.symbol });
+        const withReturns = attachComputedReturns({ ...withPrice, id: withPrice.symbol || withPrice.id });
         return resolveIpoDates(withReturns);
       })
     )
@@ -371,23 +405,41 @@ async function buildIpoList() {
   return enriched;
 }
 
-async function getAllIpos() {
-  const cacheKey = 'ipo-list';
-  const cached = cache.get(cacheKey);
-  if (cached && cached.length > 0) return { ipos: cached, stale: false };
+// Stale-while-revalidate: pages are served instantly from the last snapshot,
+// and a single shared background refresh keeps it fresh (live fetch takes seconds).
+const FRESH_MS = 60 * 1000;
+let lastFetchedAt = 0;
+let inflight = null;
 
-  try {
-    const ipos = await buildIpoList();
-    if (ipos && ipos.length > 0) {
-      cache.set(cacheKey, ipos, LIST_TTL_MS);
-      return { ipos, stale: false };
+function refreshIpos() {
+  if (inflight) return inflight;
+  inflight = (async () => {
+    try {
+      const ipos = await buildIpoList();
+      if (ipos && ipos.length > 0) {
+        lastSuccessfulIpos = ipos;
+        lastFetchedAt = Date.now();
+        return true;
+      }
+    } catch (err) {
+      console.error('Real-time IPO fetch error:', err.message);
     }
-    const stale = cache.getStale(cacheKey);
-    return { ipos: stale || [], stale: Boolean(stale) };
-  } catch (err) {
-    const stale = cache.getStale(cacheKey);
-    return { ipos: stale || [], stale: true };
-  }
+    return false;
+  })().finally(() => {
+    inflight = null;
+  });
+  return inflight;
 }
 
-module.exports = { getAllIpos };
+async function getAllIpos() {
+  if (lastSuccessfulIpos) {
+    const isFresh = Date.now() - lastFetchedAt < FRESH_MS;
+    if (!isFresh) refreshIpos(); // background, don't block the response
+    return { ipos: lastSuccessfulIpos, stale: !isFresh };
+  }
+  // Cold start: only the very first request has to wait
+  const ok = await refreshIpos();
+  return { ipos: lastSuccessfulIpos || [], stale: !ok };
+}
+
+module.exports = { getAllIpos, refreshIpos };

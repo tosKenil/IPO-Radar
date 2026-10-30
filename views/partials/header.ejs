@@ -18,8 +18,30 @@
         <span class="brand-icon">📈</span>
         <span class="brand-name">IPO<span class="brand-accent">Radar</span></span>
       </a>
+
+      <!-- Navbar Search Bar -->
+      <form action="/" method="GET" class="nav-search-form" id="navSearchForm">
+        <div class="nav-search-box">
+          <i class="fa-solid fa-magnifying-glass nav-search-icon"></i>
+          <input 
+            type="text" 
+            name="q" 
+            id="navSearchInput"
+            class="nav-search-input" 
+            placeholder="Search IPO by name, symbol, SME..." 
+            value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <% if (typeof searchQuery !== 'undefined' && searchQuery) { %>
+            <a href="/" class="nav-search-clear" title="Clear Search"><i class="fa-solid fa-xmark"></i></a>
+          <% } %>
+        </div>
+      </form>
+
       <ul class="nav-links">
         <li><a href="/" class="nav-link <%= typeof activePage !== 'undefined' && activePage === 'home' ? 'active' : '' %>"><i class="fa-solid fa-house"></i> Dashboard</a></li>
+        <li><a href="/allotment-status" class="nav-link <%= typeof activePage !== 'undefined' && activePage === 'allotment-status' ? 'active' : '' %>"><i class="fa-solid fa-square-check"></i> Check Allotment</a></li>
         <li><a href="/upcoming" class="nav-link <%= typeof activePage !== 'undefined' && activePage === 'upcoming' ? 'active' : '' %>"><i class="fa-solid fa-rocket"></i> Upcoming</a></li>
       </ul>
       <div class="nav-badge">

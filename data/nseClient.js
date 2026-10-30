@@ -2,6 +2,7 @@
 // endpoints. NSE requires a browser-like session cookie before it will
 // answer /api/* requests, so we grab that from the homepage and reuse it
 // until it goes stale.
+// Real-time responses without caching delays.
 
 const { createCache } = require('./cache');
 
@@ -10,8 +11,7 @@ const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
 
 const COOKIE_TTL_MS = 5 * 60 * 1000; // NSE's Akamai cookies expire quickly
-const RESPONSE_TTL_MS = 3 * 60 * 1000;
-const TIMEOUT_MS = 12000;
+const TIMEOUT_MS = 10000;
 
 const cache = createCache();
 let cookieRefresh = null;
@@ -67,15 +67,8 @@ async function getCookies({ forceRefresh = false } = {}) {
   return cookieRefresh;
 }
 
-// GET an NSE /api/* path and return parsed JSON. Retries once with a fresh
-// session cookie if the first attempt is rejected (401/403 — a stale or
-// missing Akamai cookie). Responses are cached briefly to avoid hammering
-// NSE when several dashboard requests land close together.
+// GET an NSE /api/* path and return live parsed JSON without response cache.
 async function nseGet(path) {
-  const cacheKey = `GET ${path}`;
-  const cached = cache.get(cacheKey);
-  if (cached !== undefined) return cached;
-
   async function attempt(forceRefresh) {
     const cookies = await getCookies({ forceRefresh });
     const controller = new AbortController();
@@ -114,20 +107,15 @@ async function nseGet(path) {
   }
 
   const data = await res.json();
-  cache.set(cacheKey, data, RESPONSE_TTL_MS);
   return data;
 }
 
-// Same as nseGet, but on failure falls back to the last successful
-// response for this path (however stale) instead of throwing. Used for
-// per-symbol detail lookups where one bad symbol shouldn't be fatal.
+// Same as nseGet, on network error returns null instead of throwing
 async function nseGetOrStale(path) {
   try {
     return await nseGet(path);
   } catch (err) {
-    const stale = cache.getStale(`GET ${path}`);
-    if (stale !== undefined) return stale;
-    throw err;
+    return null;
   }
 }
 

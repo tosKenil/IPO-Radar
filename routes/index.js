@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getAllIpos } = require('../data/ipoService');
+const { checkAllotmentStatus } = require('../data/allotmentService');
 
 // Helper: format date
 function formatDate(dateStr) {
@@ -32,7 +33,7 @@ function getOneLotAmount(ipo) {
   return price ? Math.round(price * Number(ipo.lotSize)) : null;
 }
 
-// Helper: compute expected return % (ketla % return aapi shake tem chhe)
+// Helper: compute expected return %
 function getExpectedReturn(ipo) {
   if (!ipo) return null;
 
@@ -191,6 +192,18 @@ function getInHandAmount(ipo) {
   return null;
 }
 
+// Helper: match IPO against search term
+function matchIpoSearch(ipo, query) {
+  if (!query) return true;
+  const q = query.toLowerCase().trim();
+  const name = (ipo.name || '').toLowerCase();
+  const symbol = (ipo.symbol || '').toLowerCase();
+  const category = (ipo.category || '').toLowerCase();
+  const registrar = (ipo.registrar || '').toLowerCase();
+  const status = (ipo.status || '').toLowerCase();
+  return name.includes(q) || symbol.includes(q) || category.includes(q) || registrar.includes(q) || status.includes(q);
+}
+
 // Helper: compute stats for dashboard
 function getDashboardStats(ipoList) {
   const listed = ipoList.filter((i) => i.status === 'listed');
@@ -203,20 +216,40 @@ function getDashboardStats(ipoList) {
     : null;
   const totalOpen = ipoList.filter((i) => i.status === 'open').length;
   const totalUpcoming = ipoList.filter((i) => i.status === 'upcoming').length;
-  return { totalIPOs: ipoList.length, avgReturn, best, totalOpen, totalUpcoming };
+  const totalAllotment = ipoList.filter((i) => i.status === 'allotment').length;
+  return { totalIPOs: ipoList.length, avgReturn, best, totalOpen, totalUpcoming, totalAllotment };
 }
 
 // GET /  — Dashboard
 router.get('/', async (req, res, next) => {
   try {
-    const filter = req.query.filter || 'all';
+    const filter = (req.query.filter || 'all').toLowerCase().trim();
+    const searchQuery = (req.query.q || '').trim();
     const { ipos, stale } = await getAllIpos();
-    const filtered = filter !== 'all' ? ipos.filter((i) => i.status === filter) : ipos;
+    
+    // Status filter
+    let filtered = ipos;
+    if (filter !== 'all') {
+      filtered = ipos.filter((i) => {
+        const s = (i.status || '').toLowerCase();
+        if (filter === 'allotment') {
+          return s === 'allotment' || s === 'closed' || s === 'bidding_closed';
+        }
+        return s === filter;
+      });
+    }
+
+    // Search query filter
+    if (searchQuery) {
+      filtered = filtered.filter((i) => matchIpoSearch(i, searchQuery));
+    }
+
     const stats = getDashboardStats(ipos);
     res.render('index', {
       ipos: filtered,
       allIpos: ipos,
       filter,
+      searchQuery,
       stats,
       formatDate,
       dataStale: stale,
@@ -231,12 +264,68 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// GET /ipo/:id  — Detail page (id is the NSE trading symbol)
-router.get('/ipo/:id', async (req, res, next) => {
+// GET /allotment-status  — Dedicated Allotment Status Checker Page (Like KFintech)
+router.get(['/allotment-status', '/allotment'], async (req, res, next) => {
   try {
     const { ipos } = await getAllIpos();
-    const ipo = ipos.find((i) => i.symbol.toUpperCase() === req.params.id.toUpperCase());
-    if (!ipo) return res.status(404).render('404', { message: 'IPO not found' });
+    const selectedSymbol = req.query.ipo || '';
+    res.render('allotment-status', {
+      ipos,
+      selectedSymbol,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/allotment-check — API endpoint to check allotment dynamically
+router.post('/api/allotment-check', async (req, res) => {
+  try {
+    const { ipo, queryType, queryValue } = req.body;
+    const { ipos } = await getAllIpos();
+    const targetIpo = ipos.find((i) => 
+      (i.symbol || '').toUpperCase() === String(ipo || '').toUpperCase() ||
+      (i.id || '').toUpperCase() === String(ipo || '').toUpperCase() ||
+      (i.name || '').toLowerCase().includes(String(ipo || '').toLowerCase())
+    );
+
+    const result = checkAllotmentStatus({
+      ipo: targetIpo,
+      queryType,
+      queryValue,
+      allIpos: ipos,
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred while querying the registrar database.',
+    });
+  }
+});
+
+// GET /ipo/:id  — Detail page (flexible lookup by symbol, id, or name slug)
+router.get('/ipo/:id', async (req, res, next) => {
+  try {
+    const rawId = decodeURIComponent(req.params.id || '').trim();
+    const { ipos } = await getAllIpos();
+
+    // Match by symbol, id, or lowercase slug match
+    const ipo = ipos.find((i) => {
+      const sym = (i.symbol || '').toUpperCase();
+      const id = (i.id || '').toUpperCase();
+      const target = rawId.toUpperCase();
+      const slug = (i.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      return sym === target || id === target || slug === rawId.toLowerCase();
+    });
+
+    if (!ipo) {
+      return res.status(404).render('404', { 
+        message: `IPO '${rawId}' was not found. It might have expired or not yet listed.` 
+      });
+    }
+
     res.render('detail', {
       ipo,
       formatDate,
@@ -254,10 +343,18 @@ router.get('/ipo/:id', async (req, res, next) => {
 // GET /upcoming  — Upcoming IPOs
 router.get('/upcoming', async (req, res, next) => {
   try {
+    const searchQuery = (req.query.q || '').trim();
     const { ipos, stale } = await getAllIpos();
-    const upcoming = ipos.filter((i) => i.status === 'upcoming');
+    let upcoming = ipos.filter((i) => i.status === 'upcoming');
+    
+    // Search query filter
+    if (searchQuery) {
+      upcoming = upcoming.filter((i) => matchIpoSearch(i, searchQuery));
+    }
+
     res.render('upcoming', {
       ipos: upcoming,
+      searchQuery,
       formatDate,
       dataStale: stale,
       getOneLotAmount,

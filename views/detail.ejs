@@ -1,9 +1,12 @@
 <%- include('partials/header', { title: ipo.name, activePage: 'detail' }) %>
 
 <main class="main">
-  <!-- Back Button -->
-  <div class="container back-bar">
+  <!-- Back Button & Quick Allotment Check Button -->
+  <div class="container back-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <a href="/" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
+    <a href="/allotment-status?ipo=<%= ipo.symbol %>" class="btn-primary" style="padding: 8px 18px; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 8px;">
+      <i class="fa-solid fa-square-check"></i> Check My Allotment Status
+    </a>
   </div>
 
   <div class="container detail-layout">
@@ -20,7 +23,7 @@
               <% if (ipo.issueType) { %><span class="ipo-sector"><%= ipo.issueType %></span><% } %>
               <div class="status-badge status-<%= ipo.status %> ml-auto">
                 <% if (ipo.status === 'open') { %><span class="pulse-dot"></span><% } %>
-                <%= ipo.status === 'allotment' ? 'Allotment Pending' : ipo.status.charAt(0).toUpperCase() + ipo.status.slice(1) %>
+                <%= (ipo.status === 'allotment' || ipo.status === 'closed') ? 'Allotment Pending' : ipo.status.charAt(0).toUpperCase() + ipo.status.slice(1) %>
               </div>
             </div>
             <h1 class="detail-company-name"><%= ipo.name %></h1>
@@ -98,75 +101,75 @@
         <div class="timeline">
           <div class="tl-item <%= ipo.openDate && new Date() >= new Date(ipo.openDate) ? 'done' : '' %>">
             <div class="tl-dot"></div>
-            <div class="tl-content">
-              <span class="tl-label">Open Date</span>
-              <span class="tl-date"><%= formatDate(ipo.openDate) %></span>
-            </div>
+            <span class="tl-date"><%= formatDate(ipo.openDate) %></span>
+            <span class="tl-label">Bidding Opens</span>
           </div>
-          <div class="tl-line"></div>
+          <div class="tl-line <%= ipo.closeDate && new Date() >= new Date(ipo.closeDate) ? 'done' : '' %>"></div>
           <div class="tl-item <%= ipo.closeDate && new Date() >= new Date(ipo.closeDate) ? 'done' : '' %>">
             <div class="tl-dot"></div>
-            <div class="tl-content">
-              <span class="tl-label">Close Date</span>
-              <span class="tl-date"><%= formatDate(ipo.closeDate) %></span>
-            </div>
+            <span class="tl-date"><%= formatDate(ipo.closeDate) %></span>
+            <span class="tl-label">Bidding Closes</span>
           </div>
-          <div class="tl-line"></div>
+          <div class="tl-line <%= ipo.allotmentDate && new Date() >= new Date(ipo.allotmentDate) ? 'done' : '' %>"></div>
           <div class="tl-item <%= ipo.allotmentDate && new Date() >= new Date(ipo.allotmentDate) ? 'done' : '' %>">
             <div class="tl-dot"></div>
-            <div class="tl-content">
-              <span class="tl-label">Allotment Date</span>
-              <span class="tl-date"><%= formatDate(ipo.allotmentDate) %></span>
-            </div>
+            <span class="tl-date"><%= formatDate(ipo.allotmentDate) %></span>
+            <span class="tl-label">Basis of Allotment</span>
           </div>
-          <div class="tl-line"></div>
+          <div class="tl-line <%= ipo.listingDate && new Date() >= new Date(ipo.listingDate) ? 'done' : '' %>"></div>
           <div class="tl-item <%= ipo.listingDate && new Date() >= new Date(ipo.listingDate) ? 'done' : '' %>">
             <div class="tl-dot"></div>
-            <div class="tl-content">
-              <span class="tl-label">Listing Date</span>
-              <span class="tl-date"><%= formatDate(ipo.listingDate) %></span>
-            </div>
+            <span class="tl-date"><%= formatDate(ipo.listingDate) %></span>
+            <span class="tl-label">Stock Listing</span>
           </div>
         </div>
       </div>
 
       <!-- Subscription Details -->
-      <% if (ipo.subscriptionTimes) { %>
+      <% if (ipo.subscriptionTimes || ipo.qibSubscription || ipo.niiSubscription || ipo.retailSubscription) { %>
       <div class="glass-card">
-        <h2 class="card-title"><i class="fa-solid fa-users"></i> Subscription Status</h2>
-        <div class="sub-overall">
-          <span class="sub-big"><%= ipo.subscriptionTimes %>x</span>
-          <span class="sub-lbl">Overall Subscribed</span>
+        <h2 class="card-title"><i class="fa-solid fa-users"></i> Subscription Details</h2>
+        <div class="sub-progress-list">
+          <% if (ipo.qibSubscription) { %>
+          <div class="progress-item">
+            <div class="progress-header">
+              <span class="progress-name">QIB (Institutional)</span>
+              <span class="progress-pct"><%= ipo.qibSubscription %>x</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: <%= Math.min(100, (ipo.qibSubscription / 20) * 100) %>%; background: var(--accent);"></div>
+            </div>
+          </div>
+          <% } %>
+          <% if (ipo.niiSubscription) { %>
+          <div class="progress-item">
+            <div class="progress-header">
+              <span class="progress-name">NII / HNI</span>
+              <span class="progress-pct"><%= ipo.niiSubscription %>x</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: <%= Math.min(100, (ipo.niiSubscription / 20) * 100) %>%; background: #a78bfa;"></div>
+            </div>
+          </div>
+          <% } %>
+          <% if (ipo.retailSubscription) { %>
+          <div class="progress-item">
+            <div class="progress-header">
+              <span class="progress-name">Retail Individual</span>
+              <span class="progress-pct"><%= ipo.retailSubscription %>x</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: <%= Math.min(100, (ipo.retailSubscription / 20) * 100) %>%; background: var(--green);"></div>
+            </div>
+          </div>
+          <% } %>
         </div>
-        <div class="sub-bars">
-          <div class="sub-bar-item">
-            <div class="sub-bar-header">
-              <span class="sub-bar-label">QIB</span>
-              <span class="sub-bar-val"><%= ipo.qibSubscription %>x</span>
-            </div>
-            <div class="progress-track">
-              <div class="progress-fill qib" style="width: <%= Math.min((ipo.qibSubscription / 300) * 100, 100) %>%"></div>
-            </div>
-          </div>
-          <div class="sub-bar-item">
-            <div class="sub-bar-header">
-              <span class="sub-bar-label">NII (HNI)</span>
-              <span class="sub-bar-val"><%= ipo.niiSubscription %>x</span>
-            </div>
-            <div class="progress-track">
-              <div class="progress-fill nii" style="width: <%= Math.min((ipo.niiSubscription / 300) * 100, 100) %>%"></div>
-            </div>
-          </div>
-          <div class="sub-bar-item">
-            <div class="sub-bar-header">
-              <span class="sub-bar-label">Retail</span>
-              <span class="sub-bar-val"><%= ipo.retailSubscription %>x</span>
-            </div>
-            <div class="progress-track">
-              <div class="progress-fill retail" style="width: <%= Math.min((ipo.retailSubscription / 100) * 100, 100) %>%"></div>
-            </div>
-          </div>
+        <% if (ipo.subscriptionTimes) { %>
+        <div class="total-sub-badge">
+          <span>Total Subscription:</span>
+          <strong><%= ipo.subscriptionTimes %>x</strong>
         </div>
+        <% } %>
       </div>
       <% } %>
 
@@ -267,6 +270,13 @@
           <tr><td>Issue Size</td><td><%= ipo.issueSize || '—' %></td></tr>
           <% if (ipo.registrar) { %><tr><td>Registrar</td><td><%= ipo.registrar %></td></tr><% } %>
         </table>
+
+        <!-- Check Allotment Button Inside Sidebar -->
+        <div style="margin-top: 18px;">
+          <a href="/allotment-status?ipo=<%= ipo.symbol %>" class="btn-primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <i class="fa-solid fa-square-check"></i> Check My Allotment Status
+          </a>
+        </div>
       </div>
 
       <!-- Return Calculator -->
@@ -283,19 +293,17 @@
           <div class="calc-summary" id="calcSummary">
             <div class="calc-row">
               <span>Investment</span>
-              <span id="calcInvestment">₹<%= (ipo.issuePrice * ipo.lotSize).toLocaleString('en-IN') %></span>
+              <span id="calcInvestment">₹0</span>
             </div>
             <div class="calc-row">
               <span>Current Value</span>
-              <span id="calcCurrentVal">₹<%= (ipo.currentPrice * ipo.lotSize).toLocaleString('en-IN') %></span>
+              <span id="calcCurrentVal">₹0</span>
             </div>
-            <div class="calc-row highlight">
-              <span>Profit / Loss</span>
-              <span id="calcProfit" class="<%= ipo.currentReturnPct >= 0 ? 'text-green' : 'text-red' %>">
-                ₹<%= ((ipo.currentPrice - ipo.issuePrice) * ipo.lotSize).toLocaleString('en-IN') %>
-              </span>
+            <div class="calc-row total">
+              <span>Estimated P&amp;L</span>
+              <span id="calcProfit" class="text-green">+₹0</span>
             </div>
-            <div class="calc-row highlight">
+            <div class="calc-row">
               <span>Return %</span>
               <span class="<%= parseFloat(ipo.currentReturnPct) >= 0 ? 'text-green' : 'text-red' %>"><%= parseFloat(ipo.currentReturnPct) >= 0 ? '+' : '' %><%= ipo.currentReturnPct %>%</span>
             </div>

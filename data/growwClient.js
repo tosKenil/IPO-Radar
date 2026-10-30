@@ -1,17 +1,11 @@
 // Live client for Groww's public IPO API.
-// Groww does not block cloud hosting / datacenter IPs (like Vercel / AWS),
-// providing a reliable live data source for all Indian IPOs (Mainboard & SME).
+// Fetches real-time updated data on every request (No in-memory cache delay).
 
-const { createCache } = require('./cache');
-
-const cache = createCache();
-const TTL_MS = 3 * 60 * 1000; // 3 minutes cache
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
 
 function parseDate(val) {
   if (!val || val === '-') return null;
-  // If it's already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(val).trim())) {
     return String(val).trim();
   }
@@ -106,10 +100,9 @@ function mapGrowwItem(raw, defaultStatus) {
   };
 }
 
-async function fetchGrowwIpos() {
-  const cached = cache.get('groww-all-ipos');
-  if (cached) return cached;
+let lastGrowwData = [];
 
+async function fetchGrowwIpos() {
   const urls = [
     'https://groww.in/v1/api/stocks_data/v1/all_ipos',
     'https://groww.in/v1/api/stocks_data/v1/ipo/v1/all',
@@ -119,7 +112,7 @@ async function fetchGrowwIpos() {
 
   for (const url of urls) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
+    const timer = setTimeout(() => controller.abort(), 8000);
 
     try {
       const res = await fetch(url, {
@@ -152,18 +145,15 @@ async function fetchGrowwIpos() {
       }
 
       if (items.length > 0) {
-        cache.set('groww-all-ipos', items, TTL_MS);
+        lastGrowwData = items;
         return items;
       }
     } catch (err) {
       clearTimeout(timer);
-      console.error(`Groww fetch error for ${url}:`, err.message);
     }
   }
 
-  const stale = cache.getStale('groww-all-ipos');
-  if (stale) return stale;
-  return [];
+  return lastGrowwData || [];
 }
 
 module.exports = { fetchGrowwIpos };

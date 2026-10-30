@@ -1,11 +1,7 @@
 // Live client for Upstox's public IPO API.
 // Endpoint: https://api.upstox.com/v2/ipo
-// Returns actual live IPO data (open, upcoming, closed) with real prices and lot sizes.
+// Returns actual live real-time IPO data on every request (No in-memory cache delay).
 
-const { createCache } = require('./cache');
-
-const cache = createCache();
-const TTL_MS = 3 * 60 * 1000;
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
 
@@ -57,7 +53,7 @@ function mapUpstoxItem(raw) {
   }
 
   const minPrice = parseNumber(raw.min_price);
-  const maxPrice = parseNumber(raw.max_price || raw.cut_off_price);
+  const maxPrice = parseNumber(raw.max_price || raw.cutOffPrice || raw.cut_off_price);
   let priceband = null;
   if (minPrice && maxPrice) {
     priceband = minPrice === maxPrice ? `${minPrice}` : `${minPrice} - ${maxPrice}`;
@@ -100,12 +96,11 @@ function mapUpstoxItem(raw) {
   };
 }
 
-async function fetchUpstoxIpos() {
-  const cached = cache.get('upstox-ipos');
-  if (cached) return cached;
+let lastUpstoxData = [];
 
+async function fetchUpstoxIpos() {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
+  const timer = setTimeout(() => controller.abort(), 8000);
 
   try {
     const res = await fetch('https://api.upstox.com/v2/ipo', {
@@ -118,24 +113,21 @@ async function fetchUpstoxIpos() {
     });
     clearTimeout(timer);
 
-    if (!res.ok) return [];
+    if (!res.ok) return lastUpstoxData;
     const json = await res.json();
     const rawList = Array.isArray(json) ? json : (json && Array.isArray(json.data) ? json.data : []);
-    if (!rawList || rawList.length === 0) return [];
+    if (!rawList || rawList.length === 0) return lastUpstoxData;
 
     const items = rawList.map(mapUpstoxItem).filter((i) => i.symbol);
     if (items.length > 0) {
-      cache.set('upstox-ipos', items, TTL_MS);
+      lastUpstoxData = items;
       return items;
     }
   } catch (err) {
     clearTimeout(timer);
-    console.error('Upstox IPO fetch error:', err.message);
   }
 
-  const stale = cache.getStale('upstox-ipos');
-  return stale || [];
+  return lastUpstoxData || [];
 }
 
 module.exports = { fetchUpstoxIpos };
-

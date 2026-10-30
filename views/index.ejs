@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: 'Dashboard', activePage: 'home' }) %>
+<%- include('partials/header', { title: 'Dashboard', activePage: 'home', searchQuery: typeof searchQuery !== 'undefined' ? searchQuery : '' }) %>
 
 <% if (typeof dataStale !== 'undefined' && dataStale) { %>
 <div class="stale-banner">
@@ -18,67 +18,62 @@
     <div class="hero-content">
       <div class="hero-tag"><i class="fa-solid fa-fire"></i> Live IPO Tracker</div>
       <h1 class="hero-title">IPO <span class="gradient-text">Dashboard</span></h1>
-      <p class="hero-subtitle">Track all active, upcoming &amp; recently listed IPOs — allotment dates, returns &amp; subscription status at a glance.</p>
-
-      <!-- Stats Row -->
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-icon"><i class="fa-solid fa-layer-group"></i></div>
-          <div class="stat-value"><%= stats.totalIPOs %></div>
-          <div class="stat-label">Total IPOs</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="color: var(--green)"><i class="fa-solid fa-chart-line"></i></div>
-          <div class="stat-value <%= parseFloat(stats.avgReturn) >= 0 ? 'text-green' : 'text-red' %>">
-            <%= parseFloat(stats.avgReturn) >= 0 ? '+' : '' %><%= stats.avgReturn %>%
-          </div>
-          <div class="stat-label">Avg. Current Return</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="color: var(--accent)"><i class="fa-solid fa-bolt"></i></div>
-          <div class="stat-value"><%= stats.totalOpen %></div>
-          <div class="stat-label">Open Now</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="color: #a78bfa"><i class="fa-solid fa-rocket"></i></div>
-          <div class="stat-value"><%= stats.totalUpcoming %></div>
-          <div class="stat-label">Upcoming</div>
-        </div>
-        <% if (stats.best) { %>
-        <div class="stat-card stat-card-wide">
-          <div class="stat-icon" style="color: var(--green)"><i class="fa-solid fa-trophy"></i></div>
-          <div class="stat-value text-green">+<%= stats.best.currentReturnPct %>%</div>
-          <div class="stat-label">Best: <%= stats.best.name %></div>
-        </div>
-        <% } %>
-      </div>
+      <p class="hero-subtitle">Track all active, upcoming, allotment &amp; recently listed IPOs — dates, returns &amp; subscription status in real-time.</p>
     </div>
   </section>
 
-  <!-- Filter Tabs -->
+  <!-- Filter & Search Section -->
   <section class="filter-section">
     <div class="container">
-      <div class="filter-tabs" id="filterTabs">
-        <a href="/?filter=all" id="tab-all" class="filter-tab <%= filter === 'all' ? 'active' : '' %>">
-          <i class="fa-solid fa-border-all"></i> All IPOs
-          <span class="tab-count"><%= allIpos.length %></span>
-        </a>
-        <a href="/?filter=open" id="tab-open" class="filter-tab <%= filter === 'open' ? 'active' : '' %>">
-          <i class="fa-solid fa-circle-play"></i> Open
-          <span class="tab-count"><%= allIpos.filter(i => i.status === 'open').length %></span>
-        </a>
-        <a href="/?filter=upcoming" id="tab-upcoming" class="filter-tab <%= filter === 'upcoming' ? 'active' : '' %>">
-          <i class="fa-solid fa-clock"></i> Upcoming
-          <span class="tab-count"><%= allIpos.filter(i => i.status === 'upcoming').length %></span>
-        </a>
-        <a href="/?filter=allotment" id="tab-allotment" class="filter-tab <%= filter === 'allotment' ? 'active' : '' %>">
-          <i class="fa-solid fa-envelope-open-text"></i> Allotment
-          <span class="tab-count"><%= allIpos.filter(i => i.status === 'allotment').length %></span>
-        </a>
-        <a href="/?filter=listed" id="tab-listed" class="filter-tab <%= filter === 'listed' ? 'active' : '' %>">
-          <i class="fa-solid fa-check-circle"></i> Listed
-          <span class="tab-count"><%= allIpos.filter(i => i.status === 'listed').length %></span>
-        </a>
+      <div class="filter-toolbar">
+        <div class="filter-tabs" id="filterTabs">
+          <a href="/?filter=all<%= searchQuery ? '&q=' + encodeURIComponent(searchQuery) : '' %>" id="tab-all" class="filter-tab <%= filter === 'all' ? 'active' : '' %>">
+            <i class="fa-solid fa-border-all"></i> All IPOs
+            <span class="tab-count"><%= allIpos.length %></span>
+          </a>
+          <a href="/?filter=open<%= searchQuery ? '&q=' + encodeURIComponent(searchQuery) : '' %>" id="tab-open" class="filter-tab <%= filter === 'open' ? 'active' : '' %>">
+            <i class="fa-solid fa-circle-play"></i> Open
+            <span class="tab-count"><%= allIpos.filter(i => (i.status || '').toLowerCase() === 'open').length %></span>
+          </a>
+          <a href="/?filter=allotment<%= searchQuery ? '&q=' + encodeURIComponent(searchQuery) : '' %>" id="tab-allotment" class="filter-tab <%= filter === 'allotment' ? 'active' : '' %>">
+            <i class="fa-solid fa-envelope-open-text"></i> Allotment
+            <span class="tab-count"><%= allIpos.filter(i => (i.status || '').toLowerCase() === 'allotment' || (i.status || '').toLowerCase() === 'closed').length %></span>
+          </a>
+          <a href="/?filter=upcoming<%= searchQuery ? '&q=' + encodeURIComponent(searchQuery) : '' %>" id="tab-upcoming" class="filter-tab <%= filter === 'upcoming' ? 'active' : '' %>">
+            <i class="fa-solid fa-clock"></i> Upcoming
+            <span class="tab-count"><%= allIpos.filter(i => (i.status || '').toLowerCase() === 'upcoming').length %></span>
+          </a>
+          <a href="/?filter=listed<%= searchQuery ? '&q=' + encodeURIComponent(searchQuery) : '' %>" id="tab-listed" class="filter-tab <%= filter === 'listed' ? 'active' : '' %>">
+            <i class="fa-solid fa-check-circle"></i> Listed
+            <span class="tab-count"><%= allIpos.filter(i => (i.status || '').toLowerCase() === 'listed').length %></span>
+          </a>
+        </div>
+
+        <!-- Live Instant Search Box -->
+        <div class="live-search-wrapper">
+          <i class="fa-solid fa-magnifying-glass live-search-icon"></i>
+          <input 
+            type="text" 
+            id="liveSearchInput" 
+            class="live-search-input" 
+            placeholder="Search IPOs instantly..." 
+            value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" id="liveSearchClear" class="live-search-clear" title="Clear Search" style="display: <%= (typeof searchQuery !== 'undefined' && searchQuery) ? 'inline-flex' : 'none' %>;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Search Status / Active Query Feedback -->
+      <div id="searchStatusBar" class="search-status-bar" style="display: <%= (typeof searchQuery !== 'undefined' && searchQuery) ? 'flex' : 'none' %>;">
+        <span class="search-status-text">
+          <i class="fa-solid fa-filter"></i>
+          Showing <strong id="liveSearchCount"><%= ipos.length %></strong> IPO<%= ipos.length === 1 ? '' : 's' %> <span id="liveSearchLabel"><%= searchQuery ? `matching "${searchQuery}"` : '' %></span>
+        </span>
+        <button type="button" id="btnResetSearch" class="btn-reset-search">Clear Search</button>
       </div>
     </div>
   </section>
@@ -86,21 +81,37 @@
   <!-- IPO Cards Grid -->
   <section class="cards-section">
     <div class="container">
+      <!-- Dynamic empty message for client live search -->
+      <div id="noResultsLive" class="empty-state" style="display: none;">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <h3>No IPOs found</h3>
+        <p>No IPO matches your search query. Try another keyword or reset the search.</p>
+        <button type="button" class="btn-primary" id="btnResetEmpty" style="margin-top: 14px;">Reset Search</button>
+      </div>
+
       <% if (ipos.length === 0) { %>
-        <div class="empty-state">
+        <div class="empty-state" id="initialEmptyState">
           <i class="fa-solid fa-inbox"></i>
-          <p>No live IPOs found for this filter.</p>
+          <p>No IPOs found for this filter<%= searchQuery ? ` matching "${searchQuery}"` : '' %>.</p>
+          <a href="/?filter=all" class="btn-primary" style="margin-top: 14px;">View All IPOs</a>
         </div>
       <% } else { %>
       <div class="ipo-grid" id="ipoGrid">
         <% ipos.forEach(function(ipo) { %>
-        <a href="/ipo/<%= ipo.id %>" class="ipo-card" id="ipo-card-<%= ipo.id %>">
+        <a href="/ipo/<%= ipo.id || ipo.symbol %>" 
+           class="ipo-card" 
+           id="ipo-card-<%= ipo.id || ipo.symbol %>"
+           data-name="<%= (ipo.name || '').toLowerCase() %>"
+           data-symbol="<%= (ipo.symbol || '').toLowerCase() %>"
+           data-category="<%= (ipo.category || '').toLowerCase() %>"
+           data-status="<%= (ipo.status || '').toLowerCase() %>"
+        >
           <!-- Status Badge -->
           <div class="card-header">
-            <div class="ipo-logo"><%= ipo.symbol.charAt(0) %></div>
+            <div class="ipo-logo"><%= (ipo.symbol || ipo.name || 'I').charAt(0) %></div>
             <div class="status-badge status-<%= ipo.status %>">
               <% if (ipo.status === 'open') { %><span class="pulse-dot"></span><% } %>
-              <%= ipo.status === 'allotment' ? 'Allotment' : ipo.status.charAt(0).toUpperCase() + ipo.status.slice(1) %>
+              <%= (ipo.status === 'allotment' || ipo.status === 'closed') ? 'Allotment' : ipo.status.charAt(0).toUpperCase() + ipo.status.slice(1) %>
             </div>
           </div>
 
@@ -239,5 +250,114 @@
     </div>
   </section>
 </main>
+
+<script>
+  // Client-side Instant Search & Live Filter
+  (function() {
+    const liveInput = document.getElementById('liveSearchInput');
+    const liveClear = document.getElementById('liveSearchClear');
+    const navInput = document.getElementById('navSearchInput');
+    const statusBar = document.getElementById('searchStatusBar');
+    const countSpan = document.getElementById('liveSearchCount');
+    const labelSpan = document.getElementById('liveSearchLabel');
+    const btnReset = document.getElementById('btnResetSearch');
+    const btnResetEmpty = document.getElementById('btnResetEmpty');
+    const noResults = document.getElementById('noResultsLive');
+    const grid = document.getElementById('ipoGrid');
+
+    if (!grid) return;
+
+    const cards = Array.from(grid.querySelectorAll('.ipo-card'));
+
+    function applyFilter(query) {
+      const q = (query || '').toLowerCase().trim();
+
+      // Sync inputs if different
+      if (navInput && navInput.value !== query) {
+        navInput.value = query;
+      }
+      if (liveInput && liveInput.value !== query) {
+        liveInput.value = query;
+      }
+
+      if (liveClear) {
+        liveClear.style.display = q ? 'inline-flex' : 'none';
+      }
+
+      let visibleCount = 0;
+
+      cards.forEach(card => {
+        if (!q) {
+          card.style.display = '';
+          visibleCount++;
+          return;
+        }
+
+        const name = card.getAttribute('data-name') || '';
+        const symbol = card.getAttribute('data-symbol') || '';
+        const cat = card.getAttribute('data-category') || '';
+        const status = card.getAttribute('data-status') || '';
+        const text = card.textContent.toLowerCase();
+
+        if (name.includes(q) || symbol.includes(q) || cat.includes(q) || status.includes(q) || text.includes(q)) {
+          card.style.display = '';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      // Update feedback bar
+      if (statusBar) {
+        if (q) {
+          statusBar.style.display = 'flex';
+          if (countSpan) countSpan.textContent = visibleCount;
+          if (labelSpan) labelSpan.textContent = `matching "${q}"`;
+        } else {
+          statusBar.style.display = 'none';
+        }
+      }
+
+      // Handle 0 results
+      if (noResults) {
+        if (visibleCount === 0 && q) {
+          noResults.style.display = 'block';
+          grid.style.display = 'none';
+        } else {
+          noResults.style.display = 'none';
+          grid.style.display = 'grid';
+        }
+      }
+    }
+
+    if (liveInput) {
+      liveInput.addEventListener('input', function(e) {
+        applyFilter(e.target.value);
+      });
+    }
+
+    if (liveClear) {
+      liveClear.addEventListener('click', function() {
+        if (liveInput) liveInput.value = '';
+        applyFilter('');
+        if (liveInput) liveInput.focus();
+      });
+    }
+
+    if (btnReset) {
+      btnReset.addEventListener('click', function() {
+        if (liveInput) liveInput.value = '';
+        applyFilter('');
+      });
+    }
+
+    if (btnResetEmpty) {
+      btnResetEmpty.addEventListener('click', function() {
+        if (liveInput) liveInput.value = '';
+        applyFilter('');
+      });
+    }
+  })();
+</script>
 
 <%- include('partials/footer') %>
